@@ -1,0 +1,21 @@
+__default__:
+  account: "nrsaamr"
+  partition: "ord"
+  mail-user: "davis.benjamin@epa.gov"
+  mail-type: "END,FAIL"
+  output: "slurm_logs/{rule}.%j.out"
+
+assemble:
+  time: "{resources.time}"
+  mem: "{resources.mem_mb}"
+  cpus-per-task: "{threads}"
+
+classify:
+  time: "{resources.time}"
+  mem: "{resources.mem_mb}"
+  cpus-per-task: "{threads}"
+
+plasmids:
+  time: "{resources.time}"
+  mem: "{resources.mem_mb}"
+  cpus-per-task: "{threads}"
