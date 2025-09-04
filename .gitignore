@@ -3,3 +3,4 @@ input/
 output/
 slurm/
 dbs/
+.snakemake/
