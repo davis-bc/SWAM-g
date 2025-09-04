@@ -1,0 +1,2 @@
+SyntaxError in file /work/NRSAAMR/Projects/SWAM/WGS/Snakefile, line 62:
+EOF in multi-line string (Snakefile, line 62)

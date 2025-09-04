@@ -1,0 +1,5 @@
+#!/work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_/bin/python3.12
+
+import pydoc
+if __name__ == '__main__':
+    pydoc.cli()

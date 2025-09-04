@@ -1,0 +1,39 @@
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cluster nodes: 4
+Job stats:
+job                 count
+----------------  -------
+all                     1
+fastp_and_spades        1
+total                   2
+
+Select jobs to execute...
+
+[Thu Sep  4 15:25:54 2025]
+rule fastp_and_spades:
+    input: input/SRR34965641_1.fastq, input/SRR34965641_2.fastq
+    output: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz, output/SRR34965641/chromosome/contigs.fasta, output/SRR34965641/plasmid/contigs.fasta
+    jobid: 1
+    reason: Missing output files: output/SRR34965641/plasmid/contigs.fasta, output/SRR34965641/chromosome/contigs.fasta; Code has changed since last execution
+    wildcards: sample=SRR34965641
+    threads: 8
+    resources: mem_mb=20000, mem_mib=19074, disk_mb=2136, disk_mib=2038, tmpdir=<TBD>, threads=8
+
+Submitted job 1 with external jobid 'Submitted batch job 1074948'.
+[Thu Sep  4 15:32:44 2025]
+Finished job 1.
+1 of 2 steps (50%) done
+Select jobs to execute...
+
+[Thu Sep  4 15:32:44 2025]
+localrule all:
+    input: output/SRR34965641/chromosome/contigs.fasta, output/SRR34965641/plasmid/contigs.fasta
+    jobid: 0
+    reason: Input files updated by another job: output/SRR34965641/plasmid/contigs.fasta, output/SRR34965641/chromosome/contigs.fasta
+    resources: mem_mb=20000, mem_mib=19074, disk_mb=1000, disk_mib=954, tmpdir=/tmp, threads=8
+
+[Thu Sep  4 15:32:44 2025]
+Finished job 0.
+2 of 2 steps (100%) done
+Complete log: .snakemake/log/2025-09-04T152548.255017.snakemake.log

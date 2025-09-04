@@ -1,0 +1,88 @@
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cluster nodes: 4
+Job stats:
+job                  count
+-----------------  -------
+all                      1
+fastp                    1
+spades_chromosome        1
+spades_plasmid           1
+total                    4
+
+Select jobs to execute...
+
+[Thu Sep  4 13:36:08 2025]
+rule fastp:
+    input: input/SRR34965641_1.fastq, input/SRR34965641_2.fastq
+    output: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    jobid: 2
+    reason: Missing output files: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    wildcards: sample=SRR34965641
+    threads: 8
+    resources: mem_mb=20000, mem_mib=19074, disk_mb=2136, disk_mib=2038, tmpdir=<TBD>, threads=8
+
+Submitted job 2 with external jobid 'Submitted batch job 1074864'.
+[Thu Sep  4 13:36:28 2025]
+Finished job 2.
+1 of 4 steps (25%) done
+Select jobs to execute...
+
+[Thu Sep  4 13:36:28 2025]
+rule spades_chromosome:
+    input: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    output: output/SRR34965641/chromosome
+    jobid: 1
+    reason: Missing output files: output/SRR34965641/chromosome; Input files updated by another job: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    wildcards: sample=SRR34965641
+    threads: 8
+    resources: mem_mb=20000, mem_mib=19074, disk_mb=1000, disk_mib=954, tmpdir=<TBD>, threads=8
+
+Submitted job 1 with external jobid 'Submitted batch job 1074865'.
+
+[Thu Sep  4 13:36:28 2025]
+rule spades_plasmid:
+    input: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    output: output/SRR34965641/plasmid
+    jobid: 3
+    reason: Missing output files: output/SRR34965641/plasmid; Input files updated by another job: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    wildcards: sample=SRR34965641
+    threads: 8
+    resources: mem_mb=20000, mem_mib=19074, disk_mb=1000, disk_mib=954, tmpdir=<TBD>, threads=8
+
+Submitted job 3 with external jobid 'Submitted batch job 1074866'.
+[Thu Sep  4 13:36:38 2025]
+Error in rule spades_plasmid:
+    jobid: 3
+    input: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    output: output/SRR34965641/plasmid
+    conda-env: /work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_
+    shell:
+        
+	outdir=$(dirname output/SRR34965641/plasmid)
+        mkdir -p "$outdir"
+        spades.py --plasmid -1 output/SRR34965641/SRR34965641_R1.clean.fastq.gz -2 output/SRR34965641/SRR34965641_R2.clean.fastq.gz -o "$outdir"
+        
+        (one of the commands exited with non-zero exit code; note that snakemake uses bash strict mode!)
+    cluster_jobid: Submitted batch job 1074866
+
+Error executing rule spades_plasmid on cluster (jobid: 3, external: Submitted batch job 1074866, jobscript: /work/NRSAAMR/Projects/SWAM/WGS/.snakemake/tmp.ewda29eu/snakejob.spades_plasmid.3.sh). For error details see the cluster log and the log files of the involved rule(s).
+[Thu Sep  4 13:39:48 2025]
+Error in rule spades_chromosome:
+    jobid: 1
+    input: output/SRR34965641/SRR34965641_R1.clean.fastq.gz, output/SRR34965641/SRR34965641_R2.clean.fastq.gz
+    output: output/SRR34965641/chromosome
+    conda-env: /work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_
+    shell:
+        
+        outdir=$(dirname output/SRR34965641/chromosome)
+	mkdir -p "$outdir"
+        spades.py --isolate -1 output/SRR34965641/SRR34965641_R1.clean.fastq.gz -2 output/SRR34965641/SRR34965641_R2.clean.fastq.gz -o "$outdir"
+        
+        (one of the commands exited with non-zero exit code; note that snakemake uses bash strict mode!)
+    cluster_jobid: Submitted batch job 1074865
+
+Error executing rule spades_chromosome on cluster (jobid: 1, external: Submitted batch job 1074865, jobscript: /work/NRSAAMR/Projects/SWAM/WGS/.snakemake/tmp.ewda29eu/snakejob.spades_chromosome.1.sh). For error details see the cluster log and the log files of the involved rule(s).
+Shutting down, this might take some time.
+Exiting because a job execution failed. Look above for error message
+Complete log: .snakemake/log/2025-09-04T133605.085195.snakemake.log

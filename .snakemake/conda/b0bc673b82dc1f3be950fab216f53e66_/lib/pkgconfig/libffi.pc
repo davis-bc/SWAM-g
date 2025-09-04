@@ -1,0 +1,11 @@
+prefix=/work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+toolexeclibdir=${libdir}
+includedir=/work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_/include
+
+Name: libffi
+Description: Library supporting Foreign Function Interfaces
+Version: 3.4.6
+Libs: -L${toolexeclibdir} -lffi
+Cflags: -I${includedir}

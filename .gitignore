@@ -2,3 +2,4 @@ envs/
 input/
 output/
 slurm/
+dbs/

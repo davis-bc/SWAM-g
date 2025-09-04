@@ -1,91 +1,92 @@
-import glob
-import re
 import os
+import glob
 
-configfile: "config.yaml"
+input_dir = config["in_dir"]
+output_dir = config["out_dir"]
 
-# Auto-detect sample names from input directory
-fastqs = glob.glob("input/*_1.fastq")
-SAMPLES = [re.sub(r"_1.fastq$", "", os.path.basename(f)) for f in fastqs]
+### Find all sample names by looking for *_1.fastq files
+samples = [os.path.basename(f).replace("_1.fastq", "") for f in glob.glob(os.path.join(input_dir, "*_1.fastq"))]
 
+print(samples)
+
+### Define final targets for pipeline
 rule all:
     input:
-        expand("output/{sample}/plasmids/mob_recon.done", sample=SAMPLES)
+        expand(os.path.join(output_dir, "samples", "{sample}", "chromosome", "scaffolds.fasta"), sample=samples),
+        expand(os.path.join(output_dir, "samples", "{sample}", "plasmid", "scaffolds.fasta"), sample=samples)
 
 # ---------------------------
-# 1. Assembly (fastp + SPAdes)
+# 1. Assemble (fastp + SPAdes)
 # ---------------------------
-rule assemble:
+rule fastp_and_spades:
     input:
-        r1 = "input/{sample}_1.fastq",
-        r2 = "input/{sample}_2.fastq"
+        r1 = os.path.join(input_dir, "{sample}_1.fastq"),
+        r2 = os.path.join(input_dir, "{sample}_2.fastq")
     output:
-        clean_r1 = "output/{sample}/clean/{sample}_R1.clean.fastq.gz",
-        clean_r2 = "output/{sample}/clean/{sample}_R2.clean.fastq.gz",
-        chromo_dir = directory("output/{sample}/chromosome"),
-        plasmid_dir = directory("output/{sample}/plasmid")
+        r1_clean = os.path.join(output_dir, "samples", "{sample}", "{sample}_R1.clean.fastq.gz"),
+        r2_clean = os.path.join(output_dir, "samples", "{sample}", "{sample}_R2.clean.fastq.gz"),
+        chrom_scaffolds = os.path.join(output_dir, "samples", "{sample}", "chromosome", "scaffolds.fasta"),
+        plasmid_scaffolds = os.path.join(output_dir, "samples", "{sample}", "plasmid", "scaffolds.fasta"),
+	chromosomes = directory(os.path.join(output_dir, "chromosomes")
+    params:
+        html = "/dev/null/",
+        json = "/dev/null/"
     threads: 8
     resources:
-        mem_mb = 20000,
-        time = "1-00:00:00"
+        mem_mb=20000
     conda: "envs/assemble.yaml"
     shell:
-        """
-        mkdir -p output/{wildcards.sample}/clean
-        fastp -i {input.r1} -I {input.r2} \
-              -o {output.clean_r1} -O {output.clean_r2} \
-              --html /dev/null --json /dev/null
+	"""
+        # fastp
+        mkdir -p $(dirname {output.r1_clean})
+        fastp -i {input.r1} -I {input.r2} -o {output.r1_clean} -O {output.r2_clean} --html {params.html} --json {params.json}
 
-        spades.py --isolate -1 {input.r1} -2 {input.r2} -o {output.chromo_dir}
-        spades.py --plasmid -1 {input.r1} -2 {input.r2} -o {output.plasmid_dir}
-        """
+        # chromosome assembly
+        mkdir -p $(dirname {output.chrom_scaffolds})
+        spades.py --isolate -1 {output.r1_clean} -2 {output.r2_clean} -o $(dirname {output.chrom_scaffolds})
+	
+        # plasmid assembly
+        mkdir -p $(dirname {output.plasmid_scaffolds})
+        spades.py --plasmid -1 {output.r1_clean} -2 {output.r2_clean} -o $(dirname {output.plasmid_scaffolds})
+        
+	# copy chromosome scaffolds to new directory
+	mkdir -p $(dirname {output.chromosomes})
+	cp {output.chrom_scaffolds} {output.chromosomes}/{wildcards.sample}.scaffold.fasta
+	"""
 
-# ---------------------------
-# 2. Classification (taxonomy, QC, ARGs)
-# ---------------------------
-rule classify:
+group: "assembly"
+
+
+# ------------------------------------------------------------
+# 2. Classify and Annotate (GTDB-tk + AMRFinderPlus + CheckM)
+# ------------------------------------------------------------
+
+rule classify_annotate:
     input:
-        chromo = "output/{sample}/chromosome/contigs.fasta"
+        chromosomes = os.path.join(output_dir, "chromosomes", "{sample}.scaffold.fasta")
     output:
-        gtdbtk = "output/{sample}/classify/gtdbtk.done",
-        amrf = "output/{sample}/classify/amrfinderplus.done"
+        gtdbtk = os.path.join(output_dir, "GTDB-tk", "gtdbtk.bac120.summary.tsv"),
+        amrf = directory(os.path.join(output_dir, "AMRFinderPlus")),
+        checkm = os.path.join(output_dir, "CheckM", "genome.stats.tsv")
     threads: 32
     resources:
-        mem_mb = 64000,
-        time = "2-00:00:00"
+        mem_mb = 100000,
+        time = "1-00:00:00"
     conda: "envs/classify.yaml"
     shell:
         """
-        mkdir -p output/{wildcards.sample}/classify
+        mkdir -p $(dirname {output.gtdbtk})
+        gtdbtk classify_wf --genome_dir $(dirname {input.chromosomes}) \
+            --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {threads} --skip_ani_screen
 
-        gtdbtk classify_wf \
-            --genome_dir output/{wildcards.sample}/chromosome \
-            --out_dir output/{wildcards.sample}/classify/gtdbtk \
-            -x fasta --cpus {threads} --skip_ani_screen
-        touch {output.gtdbtk}
+        mkdir -p {output.amrf}
+        amrfinder -n {input.chromosomes} --plus --name {wildcards.sample} \
+            --threads {threads} \
+            -o {output.amrf}/{wildcards.sample}.amrfinderplus.txt
 
-        amrfinder -n {input.chromo} --plus --name {wildcards.sample} \
-                  --threads {threads} \
-                  -o output/{wildcards.sample}/classify/amrfinderplus.txt
-        touch {output.amrf}
+        mkdir -p $(dirname {output.checkm})
+        checkm lineage_wf $(dirname {input.chromosomes}) $(dirname {output.checkm}) -x fasta --tmpdir "$TMPDIR" -t {threads}
+        checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
         """
 
-# ---------------------------
-# 3. Plasmid reconstruction
-# ---------------------------
-rule plasmids:
-    input:
-        asm = "output/{sample}/plasmid/contigs.fasta"
-    output:
-        "output/{sample}/plasmids/mob_recon.done"
-    threads: 8
-    resources:
-        mem_mb = 16000,
-        time = "12:00:00"
-    conda: "envs/plasmids.yaml"
-    shell:
-        """
-        mkdir -p output/{wildcards.sample}/plasmids
-        mob_recon --infile {input.asm} --outdir output/{wildcards.sample}/plasmids
-        touch {output}
-        """
+group: "classify"

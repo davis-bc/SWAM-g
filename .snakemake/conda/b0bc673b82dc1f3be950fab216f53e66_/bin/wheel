@@ -1,0 +1,10 @@
+#!/work/NRSAAMR/Projects/SWAM/WGS/.snakemake/conda/b0bc673b82dc1f3be950fab216f53e66_/bin/python3.12
+# -*- coding: utf-8 -*-
+import re
+import sys
+
+from wheel.cli import main
+
+if __name__ == '__main__':
+    sys.argv[0] = re.sub(r'(-script\.pyw?|\.exe)?$', '', sys.argv[0])
+    sys.exit(main())
