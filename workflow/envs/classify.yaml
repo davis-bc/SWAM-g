@@ -3,5 +3,4 @@ channels:
   - conda-forge
 dependencies:
   - gtdbtk
-  - ncbi-amrfinderplus
   - checkm-genome

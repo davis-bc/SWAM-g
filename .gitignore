@@ -1,5 +1,6 @@
-input/
-output/
-slurm/
-dbs/
-.snakemake/
+input/**
+output/**
+slurm/**
+dbs/**
+.snakemake/**
+.snakemake

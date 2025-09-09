@@ -3,7 +3,3 @@ jobs: 4
 default-resources:
   - mem_mb=20000
   - threads=8
-
-gtdbtk_db: /work/NRSAAMR/Software_Databases/gtdb_r220
-amrfinder_db: /db/amrfinder
-checkm_db: /work/NRSAAMR/Software_Databases/checkm_data

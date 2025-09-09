@@ -1,0 +1,115 @@
+import os
+import glob
+
+input_dir = config["in_dir"]
+output_dir = config["out_dir"]
+
+### Find all sample names by looking for *_1.fastq files
+samples = [os.path.basename(f).replace("_1.fastq", "") for f in glob.glob(os.path.join(input_dir, "*_1.fastq"))]
+
+print(samples)
+
+### Define final targets for pipeline
+rule all:
+    input:
+        expand(os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta"), sample=samples),
+        expand(os.path.join(output_dir, "GTDB-tk", "gtdbtk.bac120.summary.tsv")),
+	expand(os.path.join(output_dir, "CheckM", "genome.stats.tsv")),
+	expand(os.path.join(output_dir, "AMRFinderPlus", "{sample}.afp.tsv"), sample=samples)
+	
+# --------------------------------------
+# 1. Clean and Assemble (fastp + SPAdes)
+# --------------------------------------
+rule fastp_and_spades:
+    input:
+        r1 = os.path.join(input_dir, "{sample}_1.fastq"),
+        r2 = os.path.join(input_dir, "{sample}_2.fastq")
+    output:
+        r1_clean = os.path.join(output_dir, "samples", "{sample}", "{sample}_R1.clean.fastq.gz"),
+        r2_clean = os.path.join(output_dir, "samples", "{sample}", "{sample}_R2.clean.fastq.gz"),
+        chrom_contigs = os.path.join(output_dir, "samples", "{sample}", "spades_chromosome", "contigs.fasta"),
+        assembly = os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta")
+    params:
+        html = "/dev/null/",
+        json = "/dev/null/"
+    threads: 8
+    resources:
+        mem_mb=20000
+    conda: "envs/assemble.yaml"
+    shell:
+        """
+        # fastp
+        mkdir -p $(dirname {output.r1_clean})
+        fastp -i {input.r1} -I {input.r2} -o {output.r1_clean} -O {output.r2_clean} --html {params.html} --json {params.json}
+
+        # genome assembly
+        mkdir -p $(dirname {output.chrom_contigs})
+        spades.py --isolate -1 {output.r1_clean} -2 {output.r2_clean} -o $(dirname {output.chrom_contigs}) -t {threads}
+
+        # copy genome contigs to new directory
+        mkdir -p $(dirname {output.assembly})
+        cp {output.chrom_contigs} {output.assembly}
+        """
+
+group: "assembly"
+
+# ------------------------------------------------------------
+# 2. Classify and QA (GTDB-tk + CheckM)
+# ------------------------------------------------------------
+
+rule classify_qa:
+    input:
+        assembly = os.path.join(output_dir, "assemblies")
+    output:
+        gtdbtk = os.path.join(output_dir, "GTDB-tk", "gtdbtk.bac120.summary.tsv"),
+        checkm = os.path.join(output_dir, "CheckM", "genome.stats.tsv")
+    threads: 32
+    resources:
+        mem_mb = 100000,
+        time = "1-00:00:00"
+    conda: "envs/classify.yaml"
+    params: 
+	    gtdbtk_db=config["gtdbtk_db"],
+	    checkm_db=config["checkm_db"]
+    shell:
+        """
+        # GTDB-tk
+	export GTDBTK_DATA_PATH={{params.gtdbtk_db}}	
+	mkdir -p $(dirname {{output.gtdbtk}})
+	gtdbtk classify_wf --genome_dir {{input.assembly}} --out_dir $(dirname {{output.gtdbtk}}) --extension fasta --cpus {{threads}}
+
+	# CheckM
+        export CHECKM_DATA_PATH={params.checkm_db}
+	export TMPDIR={config[tmpdir]}
+	mkdir -p $TMPDIR
+	mkdir -p $(dirname {output.checkm})
+	checkm lineage_wf {input.assembly} $(dirname {output.checkm}) -x fasta --tmpdir "$TMPDIR" -t {threads}        
+	checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
+        """
+
+group: "classify"
+
+# -------------------------------------
+# 3. Annotate (AMRFinderPlus)
+# -------------------------------------
+
+rule annotate_amr:
+    input:
+        assembly = os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta")
+    output:
+        afp = os.path.join(output_dir, "AMRFinderPlus", "{sample}.afp.tsv")
+    threads: 8
+    resources:
+        mem_mb = 20000,
+        time = "0-10:00:00"
+    conda: "envs/amrfinder.yaml"
+    shell:
+        """
+        # AMRFinderPlus
+	mkdir -p $(dirname {output.afp})
+	amrfinder -u
+        amrfinder -n {input.assembly} --plus --name {wildcards.sample} --threads {threads} -o {output.afp}
+        """
+
+group: "classify"
+	
