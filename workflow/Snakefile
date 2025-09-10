@@ -13,9 +13,9 @@ print(samples)
 rule all:
     input:
         expand(os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta"), sample=samples),
-        expand(os.path.join(output_dir, "GTDB-tk", "gtdbtk.bac120.summary.tsv")),
-	expand(os.path.join(output_dir, "CheckM", "genome.stats.tsv")),
-	expand(os.path.join(output_dir, "AMRFinderPlus", "{sample}.afp.tsv"), sample=samples)
+        expand(os.path.join(output_dir, "gtdb-tk", "gtdbtk.bac120.summary.tsv")),
+        expand(os.path.join(output_dir, "checkm", "genome.stats.tsv")),
+        expand(os.path.join(output_dir, "amrfinderplus", "{sample}.afp.tsv"), sample=samples)
 	
 # --------------------------------------
 # 1. Clean and Assemble (fastp + SPAdes)
@@ -36,6 +36,7 @@ rule fastp_and_spades:
     resources:
         mem_mb=20000
     conda: "envs/assemble.yaml"
+    group: "alpha"
     shell:
         """
         # fastp
@@ -51,65 +52,78 @@ rule fastp_and_spades:
         cp {output.chrom_contigs} {output.assembly}
         """
 
-group: "assembly"
 
 # ------------------------------------------------------------
-# 2. Classify and QA (GTDB-tk + CheckM)
+# 2. Classify (GTDB-tk)
 # ------------------------------------------------------------
 
-rule classify_qa:
+rule gtdbtk:
     input:
-        assembly = os.path.join(output_dir, "assemblies")
+        assembly = expand(os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta"), sample=samples)
     output:
-        gtdbtk = os.path.join(output_dir, "GTDB-tk", "gtdbtk.bac120.summary.tsv"),
-        checkm = os.path.join(output_dir, "CheckM", "genome.stats.tsv")
+        gtdbtk = os.path.join(output_dir, "gtdb-tk", "gtdbtk.bac120.summary.tsv")
     threads: 32
     resources:
-        mem_mb = 100000,
-        time = "1-00:00:00"
-    conda: "envs/classify.yaml"
+        mem_mb = 150000,
+        time = "0-10:00:00"
+    conda: "envs/gtdb.yaml"
+    group: "beta"
     params: 
-	    gtdbtk_db=config["gtdbtk_db"],
-	    checkm_db=config["checkm_db"]
+	    gtdbtk_db=config["gtdbtk_db"]
     shell:
         """
         # GTDB-tk
-	export GTDBTK_DATA_PATH={{params.gtdbtk_db}}	
-	mkdir -p $(dirname {{output.gtdbtk}})
-	gtdbtk classify_wf --genome_dir {{input.assembly}} --out_dir $(dirname {{output.gtdbtk}}) --extension fasta --cpus {{threads}}
-
-	# CheckM
-        export CHECKM_DATA_PATH={params.checkm_db}
-	export TMPDIR={config[tmpdir]}
-	mkdir -p $TMPDIR
-	mkdir -p $(dirname {output.checkm})
-	checkm lineage_wf {input.assembly} $(dirname {output.checkm}) -x fasta --tmpdir "$TMPDIR" -t {threads}        
-	checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
+        export GTDBTK_DATA_PATH={params.gtdbtk_db}	
+        mkdir -p $(dirname {output.gtdbtk})
+        gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {threads} --skip_ani_screen
         """
 
-group: "classify"
+# ------------------------------------------------------------
+# 3. QA (CheckM)
+# ------------------------------------------------------------
+rule checkm:
+    input:
+        assembly = expand(os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta"), sample=samples)
+    output:
+        checkm = os.path.join(output_dir, "checkm", "genome.stats.tsv")
+    threads: 32
+    resources:
+        mem_mb = 100000,
+        time = "0-10:00:00"
+    conda: "envs/classify.yaml"
+    group: "beta"
+    params: 
+	    checkm_db=config["checkm_db"]
+    shell:
+        """
+        # CheckM
+        export CHECKM_DATA_PATH={params.checkm_db}
+        export TMPDIR={config[tmpdir]}
+        mkdir -p $TMPDIR
+        mkdir -p $(dirname {output.checkm})
+        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta --tmpdir "$TMPDIR" -t {threads}        
+        checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
+        """
+
 
 # -------------------------------------
-# 3. Annotate (AMRFinderPlus)
+# 4. Annotate (AMRFinderPlus)
 # -------------------------------------
 
 rule annotate_amr:
     input:
         assembly = os.path.join(output_dir, "assemblies", "{sample}.contigs.fasta")
     output:
-        afp = os.path.join(output_dir, "AMRFinderPlus", "{sample}.afp.tsv")
-    threads: 8
+        afp = os.path.join(output_dir, "amrfinderplus", "{sample}.afp.tsv")
+    threads: 32
     resources:
         mem_mb = 20000,
         time = "0-10:00:00"
     conda: "envs/amrfinder.yaml"
+    group: "alpha"
     shell:
         """
-        # AMRFinderPlus
-	mkdir -p $(dirname {output.afp})
-	amrfinder -u
-        amrfinder -n {input.assembly} --plus --name {wildcards.sample} --threads {threads} -o {output.afp}
+        mkdir -p $(dirname {output.afp})
+        amrfinder -u
+        amrfinder -n {input.assembly} --plus --name {wildcards.sample} --threads {threads} -o {output.afp} -i 0.8
         """
-
-group: "classify"
-	

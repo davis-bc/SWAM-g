@@ -7,4 +7,5 @@
 #SBATCH --job-name=snakemake_driver
 #SBATCH --output=/work/NRSAAMR/Projects/SWAM/WGS/snakemake.%j
 
-snakemake --profile config/slurm/ --config in_dir="input/" out_dir="output/" --configfile config/config.yaml --use-conda --conda-frontend conda
+snakemake --profile config/slurm/ --config in_dir="input/" out_dir="output/" --configfile config/config.yaml --use-conda --conda-frontend conda \
+	--group-components alpha=30 beta=2 -j 10
