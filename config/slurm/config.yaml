@@ -1,5 +1,6 @@
-cluster: "sbatch --account=nrsaamr --nodes=1 --partition=ord --time=1-00:00:00 --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/test.%j --ntasks-per-node={threads} --mem={resources.mem_mb}M" 
-jobs: 4
+cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/{rule}.%j --ntasks-per-node={threads} --mem={resources.mem_mb}M"
+jobs: 50
 default-resources:
   - mem_mb=20000
   - threads=8
+  - time='1-00:00:00'

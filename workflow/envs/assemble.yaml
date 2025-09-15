@@ -1,6 +1,15 @@
 channels:
   - bioconda
   - conda-forge
+  - defaults
 dependencies:
-  - spades
+  - python >=3.4
+  - gcc  # or clang, but gcc is default on Linux
+  - spades >=3.14.0
   - fastp
+  - racon
+  - blast
+  - setuptools
+  - pip
+  - pip:
+      - git+https://github.com/rrwick/Unicycler.git

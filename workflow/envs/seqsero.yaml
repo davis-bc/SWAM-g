@@ -1,0 +1,10 @@
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - git
+  - pip:
+    - git+https://github.com/denglab/SeqSero2.git

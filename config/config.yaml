@@ -1,4 +1,3 @@
 gtdbtk_db: /work/NRSAAMR/Projects/SWAM/WGS/dbs/release226
-checkm_db: /work/NRSAAMR/Software_Databases/checkm_data
-afp_db: /work/NRSAAMR/Projects/SWAM/WGS/dbs/2025-07-16.1
+checkm_db: /work/NRSAAMR/Projects/SWAM/WGS/dbs/checkm_data
 tmpdir: output/tmp
