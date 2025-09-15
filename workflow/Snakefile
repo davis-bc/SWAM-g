@@ -265,8 +265,26 @@ rule seqsero:
         """
 
 
+# ----------------------------------------
+#   Serotype/Pathotype E. coli (ECTyper)
+# ----------------------------------------
 
-
-
-
-
+rule ectyper:
+    input:
+        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+    output:
+        ect = os.path.join(output_dir, "serotyping", "Ecoli", "{sample}", "output.tsv")
+    resources:
+        mem_mb = 20000,
+        time = "0-10:00:00",
+        threads = 8
+    benchmark:
+        os.path.join(output_dir, "benchmarks", "{sample}.ectyper.txt")
+    conda: "envs/typing.yaml"
+    group: "group2"
+    shell:
+        """
+        # ECTyper
+        mkdir -p $(dirname {output.ect})
+        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype
+        """
