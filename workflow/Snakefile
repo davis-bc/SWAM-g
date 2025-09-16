@@ -1,5 +1,6 @@
 import os
 import glob
+import pandas as pd
 
 input_dir = config["in_dir"]
 output_dir = config["out_dir"]
@@ -17,7 +18,8 @@ rule all:
         os.path.join(output_dir, "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         os.path.join(output_dir, "checkm", "genome.stats.tsv"),
         os.path.join(output_dir, "mlst", "mlst.tsv"),
-        expand(os.path.join(output_dir, "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples)
+        lambda wildcards: expand(os.path.join(output_dir, "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=get_serotyping_samples(wildcards)[0]),
+        lambda wildcards: expand(os.path.join(output_dir, "serotyping", "Ecoli", "{sample}", "output.tsv"), sample=get_serotyping_samples(wildcards)[1])
 	
 # ------------------------------------------
 #   Clean and Assemble (fastp + Unicycler)
@@ -162,32 +164,6 @@ rule annotate_amr:
         touch {output.plas}
         """
 
-# ------------------------------------------------
-#   Taxonomically classify chromosomes (GTDB-tk)
-# ------------------------------------------------
-
-rule gtdbtk:
-    input:
-        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
-    output:
-        gtdbtk = os.path.join(output_dir, "gtdb-tk", "gtdbtk.bac120.summary.tsv")
-    resources:
-        mem_mb = 150000,
-        time = "1-00:00:00",
-        threads = 32
-    benchmark:
-        os.path.join(output_dir, "benchmarks", "gtdbtk.txt")
-    conda: "envs/gtdb.yaml"
-    params: 
-	    gtdbtk_db=config["gtdbtk_db"]
-    shell:
-        """
-        # GTDB-tk
-        export GTDBTK_DATA_PATH={params.gtdbtk_db}	
-        mkdir -p $(dirname {output.gtdbtk})
-        gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
-        """
-
 # -------------------------------------
 #   QA chromosome assemblies (CheckM)
 # -------------------------------------
@@ -232,7 +208,7 @@ rule mlst:
         threads = 4
     benchmark:
         os.path.join(output_dir, "benchmarks", "mlst.txt")
-    conda: "envs/typing.yaml"
+    conda: "envs/mlst.yaml"
     shell:
         """
         # MLST
@@ -240,13 +216,61 @@ rule mlst:
         mlst $(dirname {input.assembly[0]})/*.fasta > {output.mlst}
         """
 
+# ------------------------------------------------
+#   Taxonomically classify chromosomes (GTDB-tk)
+# ------------------------------------------------
+
+checkpoint gtdbtk:
+    input:
+        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+    output:
+        gtdbtk = os.path.join(output_dir, "gtdb-tk", "gtdbtk.bac120.summary.tsv")
+    resources:
+        mem_mb = 150000,
+        time = "1-00:00:00",
+        threads = 32
+    benchmark:
+        os.path.join(output_dir, "benchmarks", "gtdbtk.txt")
+    conda: "envs/gtdb.yaml"
+    params: 
+	    gtdbtk_db=config["gtdbtk_db"]
+    shell:
+        """
+        # GTDB-tk
+        export GTDBTK_DATA_PATH={params.gtdbtk_db}	
+        mkdir -p $(dirname {output.gtdbtk})
+        gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
+        """
+_serotyping_samples = None
+
+def get_serotyping_samples(wildcards):
+    global _serotyping_samples
+    if _serotyping_samples is None:
+        import pandas as pd
+        gtdbtk_output = checkpoints.gtdbtk.get(**wildcards).output[0]
+        df = pd.read_csv(gtdbtk_output, sep='\t')
+        salmonella_samples = []
+        ecoli_samples = []
+        for _, row in df.iterrows():
+            sample = row['user_genome'].replace('.chromosome', '')
+            classification = str(row['classification'])
+            if "Salmonella" in classification:
+                salmonella_samples.append(sample)
+            elif "Escherichia" in classification:
+                ecoli_samples.append(sample)
+        print("Salmonella samples:", salmonella_samples)
+        print("Ecoli samples:", ecoli_samples)
+        _serotyping_samples = (salmonella_samples, ecoli_samples)
+    return _serotyping_samples
+
+
 # ---------------------------------
 #   Serotype Salmonella (SeqSero2)
 # ---------------------------------
 
 rule seqsero:
     input:
-        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta")
     output:
         sq2 = os.path.join(output_dir, "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv")
     resources:
@@ -256,7 +280,7 @@ rule seqsero:
     benchmark:
         os.path.join(output_dir, "benchmarks", "{sample}.seqsero2.txt")
     conda: "envs/seqsero.yaml"
-    group: "group2"
+    group: "group3"
     shell:
         """
         # SeqSero2
@@ -271,7 +295,7 @@ rule seqsero:
 
 rule ectyper:
     input:
-        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta")
     output:
         ect = os.path.join(output_dir, "serotyping", "Ecoli", "{sample}", "output.tsv")
     resources:
@@ -280,8 +304,8 @@ rule ectyper:
         threads = 8
     benchmark:
         os.path.join(output_dir, "benchmarks", "{sample}.ectyper.txt")
-    conda: "envs/typing.yaml"
-    group: "group2"
+    conda: "envs/ectyper.yaml"
+    group: "group4"
     shell:
         """
         # ECTyper
