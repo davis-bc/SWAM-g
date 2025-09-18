@@ -7,16 +7,19 @@ library(readr)
 checkm_file  <- snakemake@input[["checkm"]]
 gtdbtk_file  <- snakemake@input[["gtdbtk"]]
 mlst_file    <- snakemake@input[["mlst"]]
-amr_cr_dir   <- snakemake@input[["amr_cr_dir"]]
-amr_plas_dir <- snakemake@input[["amr_plas_dir"]]
-seqsero_dir  <- snakemake@input[["seqsero_dir"]]
-sample_dir   <- snakemake@input[["sample_dir"]]
+amr_cr_files   <- snakemake@input[["amr_cr_files"]]
+amr_plas_done <- snakemake@input[["amr_plas_done"]]
+seqsero_files  <- snakemake@input[["seqsero_files"]]
+sample_dirs   <- snakemake@input[["sample_dirs"]]
 
 # Output file
 
 out_file <- snakemake@output[[1]]
 
-# Read in pre-generated tables
+###############################################
+###      Read in pre-generated tables
+###############################################
+
 lines <- readLines(checkm_file)
 checkm   <- read_table(lines, skip = 3, n_max = length(lines) - 4, col_names = FALSE)[1:15]
 names(checkm) <- c("Sample", "marker", "lineage", "genomes", "markers", "marker.sets", 
@@ -32,12 +35,13 @@ mlst <- read_table(mlst_file, col_names = F, col_types = cols())
 names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.chromosome\\.fasta", "\\1", mlst$Sample)
 
-# Gather AMRFinderPlus chromosome results
-amr_cr_files <- list.files(amr_cr_dir, pattern="\\.afp.tsv$", full.names=TRUE)
+###############################################
+###   Gather AMRFinderPlus chromosome results
+###############################################
 
 amr_cr <- do.call(bind_rows, lapply(amr_cr_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
+  x <- tryCatch(read_tsv(f, col_types = cols(`Contig id` = "c")), error = function(e) NULL)
+  if (is.null(x) || nrow(x) == 0) {return(NULL)}
   x$Sample <- gsub("\\.afp.tsv$", "", basename(f))
   x
 }))
@@ -45,8 +49,15 @@ amr_cr <- do.call(bind_rows, lapply(amr_cr_files, function(f) {
 amr_cr_summary <- amr_cr %>% group_by(Sample, Type) %>% summarize(genes = paste(`Element symbol`, collapse = ","), .groups = 'drop') %>% spread(Type, genes)
 names(amr_cr_summary) <- c("Sample", "Chromosome_AMR", "Chromosome_Stress", "Chromosome_Virulence")
 
-# Gather AMRFinderPlus plasmid results
-amr_plas_files <- list.files(amr_plas_dir, pattern="\\.afp.tsv$", full.names=TRUE)
+###############################################
+###   Gather AMRFinderPlus plasmid results
+###############################################
+
+amr_plas_files <- unlist(lapply(amr_plas_done, function(marker) {
+  dir <- dirname(marker)
+  # List all .plasmid*.afp.tsv files for this sample
+  list.files(dir, pattern = "*plasmid*", full.names = TRUE)
+}))
 
 amr_plas <- do.call(bind_rows, lapply(amr_plas_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`Contig id` = "c")), error = function(e) NULL)
@@ -58,9 +69,9 @@ amr_plas <- do.call(bind_rows, lapply(amr_plas_files, function(f) {
 amr_plas_summary <- amr_plas %>% group_by(Sample, Type) %>% summarize(genes = paste(`Element symbol`, collapse = ","), .groups = 'drop') %>% spread(Type, genes)
 names(amr_plas_summary) <- c("Sample", "Plasmid_AMR", "Plasmid_Stress", "Plasmid_Virulence")
 
-
-# Gather all Serotyping results
-seqsero_files <- list.files(seqsero_dir, pattern="SeqSero_result.tsv", full.names=TRUE, recursive = 1)
+###############################################
+###   Gather all Serotyping results
+###############################################
 
 seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
@@ -71,8 +82,11 @@ seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
 seqsero$Sample <- gsub("\\.chromosome.fasta$", "", seqsero$`Sample name`)
 names(seqsero)[8:9] <- c("Predicted_Serotype", "Predicted_Antigenic_Profile")
 
-# Gather MOB-suite MGE data
-mobtyper_files <- list.files(sample_dir, pattern="mobtyper_results.txt", full.names=TRUE, recursive = 2)
+###############################################
+### Gather MOB-suite MGE data
+###############################################
+
+mobtyper_files <- list.files(sample_dirs, pattern="mobtyper_results.txt", full.names=TRUE, recursive = 2)
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
@@ -84,8 +98,10 @@ mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
 mobtyper_summary <- mobtyper %>% group_by(Sample) %>% summarise(n_Plasmid = length(sample_id), 
                                                                 Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = ","), 
                                                                 Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = ","))
+###############################################
+###       Make summary table
+###############################################
 
-# Make summary table
 summary <- gtdbtk %>% select(Sample, Species) %>%
            left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
            left_join(seqsero %>% select(Sample, Predicted_Serotype, Predicted_Antigenic_Profile), by="Sample") %>%
