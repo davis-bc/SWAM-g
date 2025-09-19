@@ -1,36 +1,35 @@
 # EPA SWAM WGS
-Snakemake runs on the node you launched it from (usually login/head or an interactive allocation).
+This pipeline is designed for processing whole-genome sequencing (WGS) data for the U.S. EPA's Surface Water AMR Monitoring (SWAM) system. It was constructed to be a robust, species-agnostic pipeline for assembling and annotating WGS data for antimicrobial resistance (AMR) monitoring. EPA-SWAM-WGS calls several canonical pipelines, including [NCBI's AMRFinderPlus](https://github.com/ncbi/amr/tree/master), [CGE's Resfinder](https://github.com/genomicepidemiology/resfinder), [PHAC NML's MOB-suite and ECTyper](https://github.com/phac-nml), and [MLST](https://github.com/tseemann/mlst) for comprehensive assessment of AMR genotype, predicted phenotype, sequence type, and the presence and functionality of plasmids. It leverages the [SPAdes](https://github.com/ablab/spades/tree/main) wrapper, [Unicylcer](https://github.com/rrwick/Unicycler?tab=readme-ov-file#installation)'s circularity flags for accurate plasmid reconstruction and typing using [MOB-recon](https://github.com/phac-nml/mob-suite). If Salmonella or E. coli genomes are detected, EPA-SWAM-WGS will conditionally run [SeqSero2](https://github.com/denglab/SeqSero2/tree/master) for serotyping Salmonella or [ECTyper](https://github.com/phac-nml/ecoli_serotyping) for serotyping+pathotyping E. coli.
 
-Snakemake itself submits each rule as its own sbatch job, with its own SLURM header (taken from cluster.yaml + --cluster template).
+<img width="952" height="402" alt="EPA-SWAM-WGS drawio" src="https://github.com/user-attachments/assets/e4fc8fcc-2b67-4ec9-b420-e26670774c20" />
 
-The rules run on the cluster as independent jobs.
+## Setup and Configuration
+This pipeline was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments. Because EPA-SWAM-WGS strings several existing pipelines together, it will require some effort to prepare the appropriate databases and config files. This setup and configuration guide assumes that [miniforge](https://github.com/conda-forge/miniforge) or an equivalent conda/mamba manager is already installed and configured on an HPC system.
 
-Downside: Snakemake stays alive on the head/login node while jobs run. Some HPCs discourage long-running processes on login nodes.
-
+### Step 1. Clone repo
 ```bash
-#!/bin/bash
-#SBATCH --account=nrsaamr
-#SBATCH --partition=ord
-#SBATCH --time=01:00:00
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=2g
-#SBATCH --job-name=snakemake_driver
-#SBATCH --output=slurm_logs/snakemake.%j.out
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=davis.benjamin@epa.gov
-
-module load snakemake/ # or source your env
-snakemake --use-conda --jobs 50 \
-          --config organism="Salmonella" \
-          --cluster-config cluster.yaml \
-          --cluster "sbatch --account={cluster.account} \
-                            --partition={cluster.partition} \
-                            --time={cluster.time} \
-                            --mem={cluster.mem} \
-                            --cpus-per-task={cluster.cpus-per-task} \
-                            --mail-type={cluster.mail-type} \
-                            --mail-user={cluster.mail-user} \
-                            --output={cluster.output}"
+cd /homebase
+git clone https://github.com/davis-bc/EPA-SWAM-WGS
 ```
+### Step 2. Download and configure databases
+A large collection of databases are used, some that will require downloading beforehand ([Resfinder](https://github.com/genomicepidemiology/resfinder), [GTDB](https://ecogenomics.github.io/GTDBTk/), [CheckM](https://github.com/Ecogenomics/CheckM)). [AMRFinderPlus](https://github.com/ncbi/amr/tree/master) and [MOB-suite](https://github.com/phac-nml/mob-suite) are configured to auto-update within the pipeline.
 
-sbatch run_snakemake.sh
+Careful, this will take several hours to download and best to be run as a batch job.
+```bash
+git clone https://bitbucket.org/genomicepidemiology/resfinder_db/
+git clone https://bitbucket.org/genomicepidemiology/pointfinder_db/
+git clone https://bitbucket.org/genomicepidemiology/disinfinder_db/
+wget https://data.ace.uq.edu.au/public/CheckM_databases
+wget https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_package/full_package/gtdbtk_data.tar.gz
+tar xvzf gtdbtk_data.tar.gz
+```
+Once downloaded (or if already downloaded elsewhere), provide the absolute paths in the [config.yaml](https://github.com/davis-bc/EPA-SWAM-WGS/blob/main/config/config.yaml)
+```bash
+gtdbtk_db: /pathto/release226
+checkm_db: /pathto/checkm_data
+res_db:    /pathto/resfinder_db
+pt_db:     /pathto/pointfinder_db
+dis_db:    /pathto/disinfinder_db
+```
+### Step 3. Execute on test samples
+
