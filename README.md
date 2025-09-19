@@ -12,7 +12,9 @@ cd /homebase
 git clone https://github.com/davis-bc/EPA-SWAM-WGS
 ```
 ### Step 2. Download and configure databases
-A large collection of databases are used, some that will require downloading beforehand ([Resfinder](https://github.com/genomicepidemiology/resfinder), [GTDB](https://ecogenomics.github.io/GTDBTk/), [CheckM](https://github.com/Ecogenomics/CheckM)). [AMRFinderPlus](https://github.com/ncbi/amr/tree/master) and [MOB-suite](https://github.com/phac-nml/mob-suite) are configured to auto-update within the pipeline.
+A large collection of databases are used, some that will require downloading beforehand ([Resfinder](https://github.com/genomicepidemiology/resfinder), [GTDB](https://ecogenomics.github.io/GTDBTk/), [CheckM](https://github.com/Ecogenomics/CheckM)). 
+
+[AMRFinderPlus](https://github.com/ncbi/amr/tree/master) and [MOB-suite](https://github.com/phac-nml/mob-suite) are configured to auto-update within the pipeline.
 
 Careful, this will take several hours to download and best to be run as a batch job.
 ```bash
@@ -31,5 +33,22 @@ res_db:    /pathto/resfinder_db
 pt_db:     /pathto/pointfinder_db
 dis_db:    /pathto/disinfinder_db
 ```
-### Step 3. Execute on test samples
+### Step 3. Configure slurm profile
+This pipeline was constructed to minimize runtimes through job parallelization on an HPC cluster managed by a Slurm scheduler.
+The following [slurm profile](https://github.com/davis-bc/EPA-SWAM-WGS/blob/main/config/slurm/config.yaml) must be edited to be configured to your particular HPC environment.
+```bash
+cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/{rule}.%j --ntasks-per-node={threads} --mem={resources.mem_mb}M"
+jobs: 50
+default-resources:
+  - mem_mb=20000
+  - threads=8
+  - time='1-00:00:00'
+```
+### Step 4. Run the pipeline
+EPA-SWAM-WGS was designed to be executed on a directory of paired-end fastq's and is agnostic to common filename syntax and gzipping.
+For assembly, all detected samples will be submitted as individual jobs to minimize runtimes. 
+Because GTDB-tk and CheckM are executed, the more genomes that are provided, the more efficient the runtimes will be.
+
+
+
 
