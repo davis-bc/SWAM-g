@@ -6,9 +6,10 @@ import re
 input_dir = config["in_dir"]
 output_dir = config["out_dir"]
 
+localrules: quast, mob_init, mobsuite, afp_init, annotate_amr, mlst, seqsero, resfinder, summarize_results
 
 # ----------------------------------------------
-#   Build a mapping from sample R1 and R2 files 
+#   Build a mapping from sample R1 and R2 files
 # ----------------------------------------------
 
 def extract_sample_name(filename):
@@ -57,23 +58,27 @@ def get_r1(wildcards):
 
 def get_r2(wildcards):
     return sample_to_files[wildcards.sample]['r2']
-    
-    
+
+
 # ------------------------------------------
-#   Define the target outputs for pipeline 
+#   Define the target outputs for pipeline
 # ------------------------------------------
 
 rule all:
     input:
         expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
-        expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples), 
+        expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
+        os.path.join(output_dir, "data", "quast", "report.tsv"),
         os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
         lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=get_serotyping_samples(wildcards)[0]),
-        os.path.join(output_dir, "results_summary.tsv")
+        expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
+        os.path.join(output_dir, "results_summary.csv"),
+        os.path.join(output_dir, "salmonella_serotype_all.csv"),
+        os.path.join(output_dir, "plasmid_data_long.csv")
         #lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Ecoli", "{{sample}}", "output.tsv"), sample=get_serotyping_samples(wildcards)[1])
-	
+
 # ------------------------------------------
 #   Clean and Assemble (fastp + Unicycler)
 # ------------------------------------------
@@ -108,6 +113,33 @@ rule fastp_and_unicycler:
         """
 
 
+# ------------------------------------
+#    QA complete assemblies (Quast)
+# ------------------------------------
+
+rule quast:
+    input:
+        assemblies = lambda wildcards: expand(os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"), sample=samples)
+    output:
+        quast = os.path.join(output_dir, "data", "quast", "report.tsv")
+    conda: "envs/quast.yaml"
+    shell:
+        r"""
+        # Create temp directory for symlinks
+        tmp_quast_dir=$(mktemp -d $(dirname {output.quast})/quast_input.XXXXXXXX)
+        for infile in {input.assemblies}; do
+            sample=$(basename $(dirname $(dirname $infile)))
+            ln -sf $(realpath $infile) $tmp_quast_dir/${{sample}}.fasta
+        done
+
+        mkdir -p $(dirname {output.quast})
+        quast.py $tmp_quast_dir/*.fasta -o $(dirname {output.quast}) 
+
+        # Clean up temp symlink dir
+        rm -rf $tmp_quast_dir
+        """
+
+
 # -----------------------------------
 #    Initialize MOB-suite database
 # -----------------------------------
@@ -123,9 +155,9 @@ rule mob_init:
         touch {output}
         """
 
-# ----------------------------------------------------------------
-#   Separate chromosome from plasmid(s), type plasmids and MGEs
-# ----------------------------------------------------------------
+# --------------------------------------------------------------------------
+#   Separate chromosome from plasmid(s), type plasmids and MGEs (MOB-suite)
+# --------------------------------------------------------------------------
 
 rule mobsuite:
     input:
@@ -135,23 +167,18 @@ rule mobsuite:
         mob = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "chromosome.fasta"),
         chrom = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
         plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done")
-    resources:
-        mem_mb = 20000,
-        time = "0-10:00:00",
-        threads = 8
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "envs/mob_suite.yaml"
-    group: "group1"
     shell:
         """
         # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags 
         mob_recon --infile {input.assembly} --outdir $(dirname {output.mob}) --unicycler_contigs --force -n {resources.threads}
-        
+
         # copy chromosome assembly to new directory
         mkdir -p $(dirname {output.chrom})
         cp {output.mob} {output.chrom}
-        
+
         # copy plasmid(s) to new directory
         for f in $(dirname {output.mob})/plasmid*; do
             if [ -f $f ]; then
@@ -159,7 +186,7 @@ rule mobsuite:
                 cp $f $(dirname {output.plas})/{wildcards.sample}.$base
             fi
         done
-        
+
         # create marker file to satisfy output
         touch {output.plas}
         """
@@ -191,20 +218,15 @@ rule annotate_amr:
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"),
         plas = os.path.join(output_dir, "data", "amrfinderplus", "plasmids", ".{sample}.plasmids.afp.done")
-    resources:
-        mem_mb = 20000,
-        time = "0-10:00:00",
-        threads = 8
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "envs/amrfinder.yaml"
-    group: "group2"
     shell:
         """
         # annotate chromosomes
         mkdir -p $(dirname {output.afp})
         amrfinder -n {input.assembly} --plus --name {wildcards.sample} --threads {resources.threads} -o {output.afp} -i 0.8
-        
+
         # annotate plasmids
         mkdir -p $(dirname {output.plas})
         for f in $(dirname {input.plasmid})/{wildcards.sample}*plasmid*; do
@@ -213,7 +235,7 @@ rule annotate_amr:
                 amrfinder -n $f --plus --name $base --threads {resources.threads} -o $(dirname {output.plas})/$base.afp.tsv -i 0.8
             fi
         done
-        
+
         # create marker file to satisfy output
         touch {output.plas}
         """
@@ -234,16 +256,14 @@ rule checkm:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "checkm.txt")
     conda: "envs/checkm.yaml"
-    params: 
+    params:
 	    checkm_db=config["checkm_db"]
     shell:
         """
         # CheckM
         export CHECKM_DATA_PATH={params.checkm_db}
-        export TMPDIR={config[tmpdir]}
-        mkdir -p $TMPDIR
         mkdir -p $(dirname {output.checkm})
-        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta --tmpdir $TMPDIR -t {resources.threads}        
+        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads}        
         checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
         """
 
@@ -256,10 +276,6 @@ rule mlst:
         assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
     output:
         mlst = os.path.join(output_dir, "data", "mlst", "mlst.tsv")
-    resources:
-        mem_mb = 1000,
-        time = "0-01:00:00",
-        threads = 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "mlst.txt")
     conda: "envs/mlst.yaml"
@@ -286,15 +302,20 @@ checkpoint gtdbtk:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
     conda: "envs/gtdb.yaml"
-    params: 
+    params:
 	    gtdbtk_db=config["gtdbtk_db"]
     shell:
         """
         # GTDB-tk
-        export GTDBTK_DATA_PATH={params.gtdbtk_db}	
+        export GTDBTK_DATA_PATH={params.gtdbtk_db}
         mkdir -p $(dirname {output.gtdbtk})
         gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
         """
+
+# ----------------------------------------------------
+#   Get Salmonella and E. coli samples for serotyping
+# ----------------------------------------------------
+
 _serotyping_samples = None
 
 def get_serotyping_samples(wildcards):
@@ -330,14 +351,9 @@ rule seqsero:
         assembly = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta")
     output:
         sq2 = os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv")
-    resources:
-        mem_mb = 20000,
-        time = "0-10:00:00",
-        threads = 8
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.seqsero2.txt")
     conda: "envs/seqsero.yaml"
-    group: "group3"
     shell:
         """
         # SeqSero2
@@ -370,6 +386,85 @@ rule seqsero:
 #        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype
 #        """
 
+
+# ------------------------------------------------------
+#   Get species names from GTDB for input into Resfinder 
+# ------------------------------------------------------
+
+RESFINDER_SPECIES = [
+    "Campylobacter", "Campylobacter jejuni", "Campylobacter coli", 
+    "Enterococcus faecalis", "Enterococcus faecium", "Escherichia coli",
+    "Helicobacter pylori", "Klebsiella", "Mycobacterium tuberculosis",
+    "Neisseria gonorrhoeae", "Plasmodium falciparum", "Salmonella", 
+    "Salmonella enterica", "Staphylococcus aureus"
+]
+
+def get_species_name(wildcards):
+    gtdbtk_output = checkpoints.gtdbtk.get(**wildcards).output[0]
+    df = pd.read_csv(gtdbtk_output, sep='\t')
+    sample_fasta = f"{wildcards.sample}.chromosome"
+    row = df[df['user_genome'] == sample_fasta]
+    if row.empty:
+        return "Other"
+    classification = str(row.iloc[0]['classification'])
+    # Try to get species
+    species = None
+    genus = None
+    for part in classification.split(';'):
+        if part.startswith("s__"):
+            # Remove prefix, leave spaces intact (no underscores)
+            species = part[3:].strip()
+        if part.startswith("g__"):
+            genus = part[3:].strip()
+    # Try full species match
+    if species and species in RESFINDER_SPECIES:
+        return species
+    # Try genus-level match
+    if genus:
+        # Prefer genus-only models if present
+        for s in RESFINDER_SPECIES:
+            if s == genus:
+                return s
+        # Some Resfinder models are "Genus species" (e.g. "Salmonella enterica")
+        if species:
+            for s in RESFINDER_SPECIES:
+                if s.lower() == f"{genus.lower()} {species.lower()}":
+                    return s
+    # Try partial match (e.g., species contains a model name)
+    if species:
+        for s in RESFINDER_SPECIES:
+            if s.lower() in species.lower():
+                return s
+    # Fallback: "Other"
+    return "Other"
+
+
+
+# ------------------------------------------------------
+#     Predict phenotype from genotype (Resfinder) 
+# ------------------------------------------------------
+
+rule resfinder:
+    input:
+        assembly=lambda wildcards: os.path.join(output_dir, "samples", wildcards.sample, "unicycler", "assembly.fasta"),
+        gtdbtk=lambda wildcards: checkpoints.gtdbtk.get(**wildcards).output[0]
+    output:
+        results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt")
+    params:
+        species = lambda wildcards: get_species_name(wildcards),
+        res_db = config["res_db"],
+        pt_db = config["pt_db"],
+        dis_db = config["dis_db"]
+    conda:
+        "envs/resfinder.yaml"
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
+    shell:
+        """
+        python -m resfinder -ifa {input.assembly} -o $(dirname {output.results_dir}) -s "{params.species}" -t 0.9 -l 0.6 --acquired --point --disinfectant -db_res {params.res_db} -db_point {params.pt_db} -db_disinf {params.dis_db}
+        """
+
+
 # ---------------------------
 #    Generate Summary File
 # ---------------------------
@@ -379,21 +474,17 @@ rule summarize_results:
         checkm = os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         gtdbtk = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         mlst   = os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
+        quast  = os.path.join(output_dir, "data", "quast", "report.tsv"),
+        resfinder_files = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         amr_cr_files = expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
         amr_plas_done = expand(os.path.join(output_dir, "data", "amrfinderplus", "plasmids", ".{sample}.plasmids.afp.done"), sample=samples),
         seqsero_files = lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=get_serotyping_samples(wildcards)[0]),
         sample_dirs = expand(os.path.join(output_dir, "samples", "{sample}"), sample=samples)
     output:
-        summary = os.path.join(output_dir, "results_summary.tsv")
-    resources:
-        mem_mb = 1000,
-        time = "0-10:00:00",
-        threads = 1
+        summary = os.path.join(output_dir, "results_summary.csv"),
+        seqs2 = os.path.join(output_dir, "salmonella_serotype_all.csv"),
+        plasmid_summary = os.path.join(output_dir, "plasmid_data_long.csv")
     conda:
         "envs/Renv.yaml"
     script:
         "scripts/data_summary.R"
-
-
-
-
