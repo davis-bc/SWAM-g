@@ -146,7 +146,7 @@ phenotype <- resfinder %>% group_by(Sample) %>%
 summary <- gtdbtk %>%
   select(Sample, Species) %>%
   left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
-  left_join(phenotype, by="Sample") %>%
+  left_join(phenotype, by="Sample") 
 
 if (has_seqsero) {
   summary <- summary %>%
