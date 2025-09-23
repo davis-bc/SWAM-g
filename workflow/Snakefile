@@ -2,11 +2,15 @@ import os
 import glob
 import pandas as pd
 import re
+import csv
 
 input_dir = config["in_dir"]
 output_dir = config["out_dir"]
 
-localrules: quast, mob_init, mobsuite, afp_init, annotate_amr, mlst, seqsero, resfinder, summarize_results
+print("input_dir from config:", config.get("in_dir"))
+print("output_dir from config:", config.get("out_dir"))
+
+localrules: quast, mob_init, mobsuite, afp_init, annotate_amr, mlst, get_serotyping_samples, get_resfinder_species, seqsero, resfinder, summarize_results
 
 # ----------------------------------------------
 #   Build a mapping from sample R1 and R2 files
@@ -72,12 +76,15 @@ rule all:
         os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
-        lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=get_serotyping_samples(wildcards)[0]),
+        os.path.join(output_dir, "data", "serotyping_samples.txt"),
+        os.path.join(output_dir, "data", "resfinder_species.tsv"),
+        expand(os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=serotyping_samples),
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         os.path.join(output_dir, "results_summary.csv"),
         os.path.join(output_dir, "salmonella_serotype_all.csv"),
         os.path.join(output_dir, "plasmid_data_long.csv")
-        #lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Ecoli", "{{sample}}", "output.tsv"), sample=get_serotyping_samples(wildcards)[1])
+
+
 
 # ------------------------------------------
 #   Clean and Assemble (fastp + Unicycler)
@@ -119,7 +126,7 @@ rule fastp_and_unicycler:
 
 rule quast:
     input:
-        assemblies = lambda wildcards: expand(os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"), sample=samples)
+        assemblies = expand(os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"), sample=samples)
     output:
         quast = os.path.join(output_dir, "data", "quast", "report.tsv")
     conda: "envs/quast.yaml"
@@ -290,7 +297,7 @@ rule mlst:
 #   Taxonomically classify chromosomes (GTDB-tk)
 # ------------------------------------------------
 
-checkpoint gtdbtk:
+rule gtdbtk:
     input:
         assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
     output:
@@ -313,33 +320,48 @@ checkpoint gtdbtk:
         """
 
 # ----------------------------------------------------
-#   Get Salmonella and E. coli samples for serotyping
+#   Get sample lists for Serotyping + Resfinder
 # ----------------------------------------------------
 
-_serotyping_samples = None
+rule get_serotyping_samples:
+    input:
+        summary = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
+    output:
+        samples = os.path.join(output_dir, "data", "serotyping_samples.txt")
+    script:
+        "scripts/get_serotyping_samples.py"
 
-def get_serotyping_samples(wildcards):
-    global _serotyping_samples
-    if _serotyping_samples is None:
-        gtdbtk_output = checkpoints.gtdbtk.get(**wildcards).output[0]
-        df = pd.read_csv(gtdbtk_output, sep='\t')
-        salmonella_samples = []
-        ecoli_samples = []
-        entero_samples = []
-        for _, row in df.iterrows():
-            sample = row['user_genome'].replace('.chromosome', '')
-            classification = str(row['classification'])
-            if "Salmonella" in classification:
-                salmonella_samples.append(sample)
-            elif "Escherichia" in classification:
-                ecoli_samples.append(sample)
-            elif "Enterococcus" in classification:
-                entero_samples.append(sample)
-        print("Salmonella samples:", salmonella_samples)
-        print("Ecoli samples:", ecoli_samples)
-        print("Enterococcus samples:", entero_samples)
-        _serotyping_samples = (salmonella_samples, ecoli_samples, entero_samples)
-    return _serotyping_samples
+
+rule get_resfinder_species:
+    input:
+        summary = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
+    output:
+        species_map = os.path.join(output_dir, "data", "resfinder_species.tsv")
+    script:
+        "scripts/get_resfinder_species.py"
+        
+# -----------------------------------------------------------
+#  Load dynamic sample/species lists for the DAG after rules
+# -----------------------------------------------------------
+        
+def load_serotyping_samples(path):
+    if os.path.exists(path):
+        with open(path) as f:
+            return [line.strip() for line in f if line.strip()]
+    else:
+        return []
+
+def load_resfinder_species_map(path):
+    species_map = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                species_map[row['sample']] = row['species']
+    return species_map
+
+serotyping_samples = load_serotyping_samples(os.path.join(output_dir, "data", "serotyping_samples.txt"))
+resfinder_species_map = load_resfinder_species_map(os.path.join(output_dir, "data", "resfinder_species.tsv"))
 
 
 # ---------------------------------
@@ -350,7 +372,7 @@ rule seqsero:
     input:
         assembly = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta")
     output:
-        sq2 = os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv")
+        sq2 = os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv", sample=serotyping_samples)
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.seqsero2.txt")
     conda: "envs/seqsero.yaml"
@@ -387,58 +409,6 @@ rule seqsero:
 #        """
 
 
-# ------------------------------------------------------
-#   Get species names from GTDB for input into Resfinder 
-# ------------------------------------------------------
-
-RESFINDER_SPECIES = [
-    "Campylobacter", "Campylobacter jejuni", "Campylobacter coli", 
-    "Enterococcus faecalis", "Enterococcus faecium", "Escherichia coli",
-    "Helicobacter pylori", "Klebsiella", "Mycobacterium tuberculosis",
-    "Neisseria gonorrhoeae", "Plasmodium falciparum", "Salmonella", 
-    "Salmonella enterica", "Staphylococcus aureus"
-]
-
-def get_species_name(wildcards):
-    gtdbtk_output = checkpoints.gtdbtk.get(**wildcards).output[0]
-    df = pd.read_csv(gtdbtk_output, sep='\t')
-    sample_fasta = f"{wildcards.sample}.chromosome"
-    row = df[df['user_genome'] == sample_fasta]
-    if row.empty:
-        return "Other"
-    classification = str(row.iloc[0]['classification'])
-    # Try to get species
-    species = None
-    genus = None
-    for part in classification.split(';'):
-        if part.startswith("s__"):
-            # Remove prefix, leave spaces intact (no underscores)
-            species = part[3:].strip()
-        if part.startswith("g__"):
-            genus = part[3:].strip()
-    # Try full species match
-    if species and species in RESFINDER_SPECIES:
-        return species
-    # Try genus-level match
-    if genus:
-        # Prefer genus-only models if present
-        for s in RESFINDER_SPECIES:
-            if s == genus:
-                return s
-        # Some Resfinder models are "Genus species" (e.g. "Salmonella enterica")
-        if species:
-            for s in RESFINDER_SPECIES:
-                if s.lower() == f"{genus.lower()} {species.lower()}":
-                    return s
-    # Try partial match (e.g., species contains a model name)
-    if species:
-        for s in RESFINDER_SPECIES:
-            if s.lower() in species.lower():
-                return s
-    # Fallback: "Other"
-    return "Other"
-
-
 
 # ------------------------------------------------------
 #     Predict phenotype from genotype (Resfinder) 
@@ -446,22 +416,22 @@ def get_species_name(wildcards):
 
 rule resfinder:
     input:
-        assembly=lambda wildcards: os.path.join(output_dir, "samples", wildcards.sample, "unicycler", "assembly.fasta"),
-        gtdbtk=lambda wildcards: checkpoints.gtdbtk.get(**wildcards).output[0]
+        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
+        species_map = os.path.join(output_dir, "data", "resfinder_species.tsv")
     output:
         results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt")
     params:
-        species = lambda wildcards: get_species_name(wildcards),
+        species = lambda wildcards: resfinder_species_map.get(wildcards.sample, "Other"),
         res_db = config["res_db"],
         pt_db = config["pt_db"],
         dis_db = config["dis_db"]
-    conda:
-        "envs/resfinder.yaml"
+    conda: "envs/resfinder.yaml"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
     shell:
         """
-        python -m resfinder -ifa {input.assembly} -o $(dirname {output.results_dir}) -s "{params.species}" -t 0.9 -l 0.6 --acquired --point --disinfectant -db_res {params.res_db} -db_point {params.pt_db} -db_disinf {params.dis_db}
+        python -m resfinder -ifa {input.assembly} -o $(dirname {output.results_dir}) -s "{params.species}" -t 0.9 -l 0.6 \ 
+        --acquired --point --disinfectant -db_res {params.res_db} -db_point {params.pt_db} -db_disinfectant {params.dis_db}
         """
 
 
@@ -478,7 +448,7 @@ rule summarize_results:
         resfinder_files = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         amr_cr_files = expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
         amr_plas_done = expand(os.path.join(output_dir, "data", "amrfinderplus", "plasmids", ".{sample}.plasmids.afp.done"), sample=samples),
-        seqsero_files = lambda wildcards: expand(os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=get_serotyping_samples(wildcards)[0]),
+        seqsero_files = os.path.join(output_dir, "data", "serotyping", "Salmonella", "{sample}", "SeqSero_result.tsv", sample=serotyping_samples),
         sample_dirs = expand(os.path.join(output_dir, "samples", "{sample}"), sample=samples)
     output:
         summary = os.path.join(output_dir, "results_summary.csv"),
