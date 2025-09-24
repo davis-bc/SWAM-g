@@ -176,7 +176,8 @@ rule mobsuite:
     output:
         mob = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "chromosome.fasta"),
         chrom = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
-        plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done")
+        plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done"),
+        mobtyper = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "mobtyper_results.txt")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "envs/mob_suite.yaml"
@@ -417,7 +418,6 @@ rule resfinder:
         python -m resfinder -ifa {input.assembly} -o $(dirname {output.results_dir}) -s "{params.species}" -t 0.9 -l 0.6 --acquired --point --disinfectant -db_res {params.res_db} -db_point {params.pt_db} -db_disinf {params.dis_db}
         """
 
-
 # ---------------------------
 #    Generate Summary File
 # ---------------------------
@@ -432,7 +432,7 @@ rule summarize_results:
         amr_cr_files = expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
         amr_plas_done = expand(os.path.join(output_dir, "data", "amrfinderplus", "plasmids", ".{sample}.plasmids.afp.done"), sample=samples),
         seqsero_files = expand(os.path.join(output_dir, "data", "SeqSero2", "{sample}", "SeqSero_result.tsv"), sample=samples),
-        sample_dirs = expand(os.path.join(output_dir, "samples", "{sample}"), sample=samples)
+        mobtyper_files = expand(os.path.join(output_dir, "samples", "{sample}", "mob-suite", "mobtyper_results.txt"), sample=samples)
     output:
         summary = os.path.join(output_dir, "results_summary.csv"),
         seqs2 = os.path.join(output_dir, "salmonella_serotype_all.csv"),

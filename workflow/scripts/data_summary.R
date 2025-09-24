@@ -12,7 +12,7 @@ resfinder_files <- snakemake@input[["resfinder_files"]]
 amr_cr_files   <- snakemake@input[["amr_cr_files"]]
 amr_plas_done <- snakemake@input[["amr_plas_done"]]
 seqsero_files  <- snakemake@input[["seqsero_files"]]
-sample_dirs   <- snakemake@input[["sample_dirs"]]
+mobtyper_files   <- snakemake@input[["mobtyper_files"]]
 
 # Output files
 
@@ -104,8 +104,6 @@ seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identificati
 ###############################################
 ### Gather MOB-suite MGE data
 ###############################################
-
-mobtyper_files <- list.files(sample_dirs, pattern="mobtyper_results.txt", full.names=TRUE, recursive = 2)
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
