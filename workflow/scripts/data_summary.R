@@ -83,23 +83,22 @@ names(amr_plas_summary) <- c("Sample", "Plasmid_AMR", "Plasmid_Stress", "Plasmid
 ###   Gather all Serotyping results
 ###############################################
 
-has_seqsero <- FALSE
-seqsero <- tibble()
+seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
+  x <- tryCatch(
+    read_tsv(f, col_types = cols(.default = col_character())),
+    error=function(e) NULL
+  )
+  if (is.null(x)) return(NULL)
+  x
+  
+}))
+  
+seqsero$Sample <- gsub("\\.chromosome.fasta$", "", seqsero$`Sample name`)
+names(seqsero)[8:9] <- c("Predicted_Antigenic_Profile", "Predicted_Serotype")
 
-if (length(seqsero_files) > 0) {
-  seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
-    x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-    if (is.null(x)) return(NULL)
-    x
-  }))
-  if (nrow(seqsero) > 0) {
-    has_seqsero <- TRUE
-    seqsero$Sample <- gsub("\\.chromosome.fasta$", "", seqsero$`Sample name`)
-    names(seqsero)[8:9] <- c("Predicted_Antigenic_Profile", "Predicted_Serotype")
-  }
-}
 
-seqsero_simple <- seqsero %>% relocate(Sample) %>% select(-c(`Sample name`, `Output directory`))
+seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identification`)) %>%
+  relocate(Sample) %>% select(-c(`Sample name`, `Output directory`))
 
 
 ###############################################
@@ -146,14 +145,8 @@ phenotype <- resfinder %>% group_by(Sample) %>%
 summary <- gtdbtk %>%
   select(Sample, Species) %>%
   left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
-  left_join(phenotype, by="Sample") 
-
-if (has_seqsero) {
-  summary <- summary %>%
-    left_join(seqsero %>% select(Sample, Predicted_Serotype, Predicted_Antigenic_Profile), by="Sample")
-}
-
-summary <- summary %>%
+  left_join(phenotype, by="Sample") %>%
+  left_join(seqsero %>% select(Sample, Predicted_Serotype, Predicted_Antigenic_Profile), by="Sample") %>%
   left_join(amr_cr_summary, by="Sample") %>%
   left_join(mobtyper_summary, by="Sample") %>%
   left_join(amr_plas_summary, by="Sample") %>%
