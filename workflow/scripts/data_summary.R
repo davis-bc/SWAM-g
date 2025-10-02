@@ -19,6 +19,7 @@ mobtyper_files   <- snakemake@input[["mobtyper_files"]]
 out_file1 <- snakemake@output[[1]]
 out_file2 <- snakemake@output[[2]]
 out_file3 <- snakemake@output[[3]]
+out_file4 <- snakemake@output[[4]]
 
 ###############################################
 ###      Read in pre-generated tables
@@ -39,14 +40,15 @@ mlst <- read_table(mlst_file, col_names = F, col_types = cols())
 names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.chromosome\\.fasta", "\\1", mlst$Sample)
 
-quast <- read.table(quast_file, sep = "\t", header=T)
+quast <- read.table(quast_file, sep = "\t", header=T, check.names = F)
 quast <- quast %>% gather(Sample, Value, 2:length(quast)) %>% 
-         pivot_wider(names_from = Assembly, values_from = Value)
-names(quast)[9:10] <- c("Genome_Length", "GC")
+            pivot_wider(names_from = Assembly, values_from = Value)
 
 ###############################################
 ###   Gather AMRFinderPlus chromosome results
 ###############################################
+
+expected_types <- c("AMR", "STRESS", "VIRULENCE")
 
 amr_cr <- do.call(bind_rows, lapply(amr_cr_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`Contig id` = "c")), error = function(e) NULL)
@@ -55,8 +57,23 @@ amr_cr <- do.call(bind_rows, lapply(amr_cr_files, function(f) {
   x
 }))
 
-amr_cr_summary <- amr_cr %>% group_by(Sample, Type) %>% summarize(genes = paste(`Element symbol`, collapse = ","), .groups = 'drop') %>% spread(Type, genes)
-names(amr_cr_summary) <- c("Sample", "Chromosome_AMR", "Chromosome_Stress", "Chromosome_Virulence")
+amr_cr_summary <- amr_cr %>%
+  group_by(Sample, Type) %>%
+  summarize(genes = paste(`Element symbol`, collapse = ", "), .groups = 'drop') %>%
+  tidyr::pivot_wider(
+    names_from = Type,
+    values_from = genes,
+    names_prefix = "Chromosome_",
+    values_fill = list(genes = NA)
+  )
+
+# Ensure all expected columns are present
+for (col in paste0("Chromosome_", expected_types)) {
+  if (!col %in% names(amr_cr_summary)) amr_cr_summary[[col]] <- NA
+}
+
+amr_cr_summary <- amr_cr_summary %>%
+  select(Sample, Chromosome_AMR, Chromosome_STRESS, Chromosome_VIRULENCE)
 
 ###############################################
 ###   Gather AMRFinderPlus plasmid results
@@ -68,6 +85,7 @@ amr_plas_files <- unique(unlist(lapply(amr_plas_done, function(marker) {
   list.files(dir, pattern = "*plasmid*", full.names = TRUE)
 })))
 
+
 amr_plas <- do.call(bind_rows, lapply(amr_plas_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`Contig id` = "c")), error = function(e) NULL)
   if (is.null(x) || nrow(x) == 0) {return(NULL)}
@@ -75,9 +93,26 @@ amr_plas <- do.call(bind_rows, lapply(amr_plas_files, function(f) {
   x
 }))
 
+amr_plas_summary <- amr_plas %>%
+  group_by(Sample, Type) %>%
+  summarize(genes = paste(`Element symbol`, collapse = ", "), .groups = 'drop') %>%
+  tidyr::pivot_wider(
+    names_from = Type,
+    values_from = genes,
+    names_prefix = "Plasmid_",
+    values_fill = list(genes = NA)
+  )
 
-amr_plas_summary <- amr_plas %>% group_by(Sample, Type) %>% summarize(genes = paste(`Element symbol`, collapse = ","), .groups = 'drop') %>% spread(Type, genes)
-names(amr_plas_summary) <- c("Sample", "Plasmid_AMR", "Plasmid_Stress", "Plasmid_Virulence")
+for (col in paste0("Plasmid_", expected_types)) {
+  if (!col %in% names(amr_plas_summary)) amr_plas_summary[[col]] <- NA
+}
+
+amr_plas_summary <- amr_plas_summary %>%
+  select(Sample, Plasmid_AMR, Plasmid_STRESS, Plasmid_VIRULENCE)
+  
+  
+afp_genotype <- bind_rows(amr_cr, amr_plas) %>% filter(Type == "AMR") %>% group_by(Sample) %>%
+                summarise(AMRFinder_Genotype = paste(sort(unique(`Element symbol`)), collapse = ", "))
 
 ###############################################
 ###   Gather all Serotyping results
@@ -116,25 +151,43 @@ mobtyper <- mobtyper[, c(ncol(mobtyper), 1:(ncol(mobtyper) - 1))]
 mobtyper <- mobtyper %>% mutate(Name = paste0(Sample, ".plasmid_", str_extract(sample_id, "(?<=assembly:)\\w+")))
 
 mobtyper_summary <- mobtyper %>% group_by(Sample) %>% summarise(n_Plasmid = length(sample_id), 
-                                                                Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = ","), 
-                                                                Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = ","))
+                                                                Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = ", "), 
+                                                                Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = ", "))
 
+
+plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") %>% relocate(Name)
 
 ###############################################
 ###      Parse Resfinder phenotypes
 ###############################################
 
-resfinder <- do.call(bind_rows, lapply(resfinder_files, function(f) {
+safe_read_resfinder <- function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
-  x$Sample <- basename(dirname(f))
-  x
-}))
+  sample_name <- basename(dirname(f))
+  
+  # If empty, or only header, return row with Sample and NA Phenotype
+  if (is.null(x) || nrow(x) == 0) {
+    return(tibble(Sample = sample_name, Phenotype = NA))
+  }
+  
+  # Coerce Identity if present
+  if ("Identity" %in% names(x)) x$Identity <- as.character(x$Identity)
+  # Ensure Sample column
+  x$Sample <- sample_name
+  # If Phenotype missing, add it
+  if (!("Phenotype" %in% names(x))) x$Phenotype <- NA
+  return(x)
+}
+
+resfinder <- do.call(bind_rows, lapply(resfinder_files, safe_read_resfinder))
 
 phenotype <- resfinder %>% group_by(Sample) %>%
              summarise(phenotype = list(unlist(str_split(Phenotype, ",\\s*")))) %>% 
-             mutate(CGE_Predicted_Phenotype = map_chr(phenotype, ~ paste(sort(unique(trimws(.))), collapse = ", "))) %>%
+             mutate(Resfinder_Predicted_Phenotype = map_chr(phenotype, ~ paste(sort(unique(trimws(.))), collapse = ", "))) %>%
              select(-phenotype)
+             
+resfinder_genotype <- resfinder %>% group_by(Sample) %>% 
+  summarise(Resfinder_Genotype = paste(sort(unique(`Resistance gene`)), collapse = ", "))      
 
 ###############################################
 ###       Make summary table
@@ -143,19 +196,23 @@ phenotype <- resfinder %>% group_by(Sample) %>%
 summary <- gtdbtk %>%
   select(Sample, Species) %>%
   left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
+  left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
+  left_join(afp_genotype, by="Sample") %>%
+  left_join(resfinder_genotype, by="Sample") %>%
   left_join(phenotype, by="Sample") %>%
-  left_join(seqsero %>% select(Sample, Predicted_Serotype, Predicted_Antigenic_Profile), by="Sample") %>%
   left_join(amr_cr_summary, by="Sample") %>%
   left_join(mobtyper_summary, by="Sample") %>%
   left_join(amr_plas_summary, by="Sample") %>%
-  left_join(quast %>% select(Sample, Genome_Length, GC, N50), by="Sample") %>%
   left_join(checkm %>% select(Sample, Completeness, Contamination, Strain_Heterogeneity), by="Sample")
-  
-plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") %>% relocate(Name)
 
+###############################################
+###       Write outputs
+###############################################
+ 
 write_csv(summary, out_file1)
 write_csv(seqsero_simple, out_file2)
 write_csv(plasmid_summary, out_file3)
+write_csv(quast, out_file4)
 
 
 

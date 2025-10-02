@@ -10,7 +10,7 @@ output_dir = config["out_dir"]
 print("input_dir from config:", config.get("in_dir"))
 print("output_dir from config:", config.get("out_dir"))
 
-localrules: quast, mob_init, mobsuite, afp_init, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
+localrules: quast, mob_init, afp_init, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
 
 # ----------------------------------------------
 #   Build a mapping from sample R1 and R2 files
@@ -81,7 +81,8 @@ rule all:
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         os.path.join(output_dir, "results_summary.csv"),
         os.path.join(output_dir, "salmonella_serotype_all.csv"),
-        os.path.join(output_dir, "plasmid_data_long.csv")
+        os.path.join(output_dir, "plasmid_data_long.csv"),
+        os.path.join(output_dir, "assembly_QA.csv")
 
 
 
@@ -178,9 +179,14 @@ rule mobsuite:
         chrom = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
         plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done"),
         mobtyper = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "mobtyper_results.txt")
+    resources:
+        mem_mb = 1000,
+        time = "0-10:00:00",
+        threads = 1
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "envs/mob_suite.yaml"
+    group: "group1"
     shell:
         """
         # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags 
@@ -197,6 +203,11 @@ rule mobsuite:
                 cp $f $(dirname {output.plas})/{wildcards.sample}.$base
             fi
         done
+        
+        # Always create mobtyper_results.txt in the absence of plasmid contigs
+        if [ ! -f {output.mobtyper} ]; then
+        touch {output.mobtyper}
+        fi
 
         # create marker file to satisfy output
         touch {output.plas}
@@ -229,9 +240,14 @@ rule annotate_amr:
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"),
         plas = os.path.join(output_dir, "data", "amrfinderplus", "plasmids", ".{sample}.plasmids.afp.done")
+    resources:
+        mem_mb = 1000,
+        time = "0-10:00:00",
+        threads = 1
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "envs/amrfinder.yaml"
+    group: "group2"
     shell:
         """
         # annotate chromosomes
@@ -436,7 +452,8 @@ rule summarize_results:
     output:
         summary = os.path.join(output_dir, "results_summary.csv"),
         seqs2 = os.path.join(output_dir, "salmonella_serotype_all.csv"),
-        plasmid_summary = os.path.join(output_dir, "plasmid_data_long.csv")
+        plasmid_summary = os.path.join(output_dir, "plasmid_data_long.csv"),
+        assembly = os.path.join(output_dir, "assembly_QA.csv")
     conda:
         "envs/Renv.yaml"
     script:
