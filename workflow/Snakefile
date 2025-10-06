@@ -15,16 +15,13 @@ configfile: "config/config.yaml"
 # ---------------
 
 include: "rules/common.smk"
-include: "rules/fastp_and_spades.smk"
-include: "rules/assembly_qa.smk"
-include: "rules/mobsuite.smk"
+include: "rules/assemble.smk"
 include: "rules/annotate_amr.smk"
-include: "rules/gtdbtk.smk"
-include: "rules/checkm.smk"
+include: "rules/classify.smk"
 include: "rules/serotype.smk"
 include: "rules/summary_output.smk"
 
-localrules: quast, mob_init, afp_init, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
+localrules: mob_init, afp_init, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline
@@ -34,7 +31,7 @@ rule all:
     input:
         expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
         expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
-        os.path.join(output_dir, "data", "quast", "report.tsv"),
+        expand(os.path.join(output_dir, "data", "bams", "{sample}.bam"), sample=samples),
         os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
@@ -44,4 +41,4 @@ rule all:
         os.path.join(output_dir, "results_summary.csv"),
         os.path.join(output_dir, "salmonella_serotype_all.csv"),
         os.path.join(output_dir, "plasmid_data_long.csv"),
-        os.path.join(output_dir, "assembly_QA.csv")
+        os.path.join(output_dir, "QA_assembly_stats.csv")

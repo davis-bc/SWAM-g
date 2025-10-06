@@ -23,7 +23,7 @@ rule mlst:
 
 rule seqsero:
     input:
-        assembly = os.path.join(output_dir, "samples", "{sample}", "spades", "contigs.fasta")
+        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta")
     output:
         sq2 = os.path.join(output_dir, "data", "SeqSero2", "{sample}", "SeqSero_result.tsv")
     benchmark:

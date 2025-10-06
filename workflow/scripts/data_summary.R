@@ -5,14 +5,15 @@ library(readr)
 
 # Input files
 checkm_file  <- snakemake@input[["checkm"]]
+checkm_stats  <- snakemake@input[["checkm_stats"]]
 gtdbtk_file  <- snakemake@input[["gtdbtk"]]
 mlst_file    <- snakemake@input[["mlst"]]
-quast_file   <- snakemake@input[["quast"]]
 resfinder_files <- snakemake@input[["resfinder_files"]]
 amr_cr_files   <- snakemake@input[["amr_cr_files"]]
 amr_plas_done <- snakemake@input[["amr_plas_done"]]
 seqsero_files  <- snakemake@input[["seqsero_files"]]
 mobtyper_files   <- snakemake@input[["mobtyper_files"]]
+coverage_files  <- snakemake@input[["coverage_files"]]
 
 # Output files
 
@@ -40,9 +41,56 @@ mlst <- read_table(mlst_file, col_names = F, col_types = cols())
 names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.chromosome\\.fasta", "\\1", mlst$Sample)
 
-quast <- read.table(quast_file, sep = "\t", header=T, check.names = F)
-quast <- quast %>% gather(Sample, Value, 2:length(quast)) %>% 
-            pivot_wider(names_from = Assembly, values_from = Value)
+###############################################
+###       Gather coverage data
+###############################################
+
+coverage <- do.call(rbind, lapply(coverage_files, function(f) 
+  read.table(f, header = FALSE, sep = "\t", stringsAsFactors = FALSE)))
+
+colnames(coverage) <- c("Sample", "XCoverage")
+
+########################################################
+###      Parse ridiculous checkm bin_stats.analyze file
+########################################################
+
+# Read lines from file
+lines <- read_lines(checkm_stats)
+
+# Function to parse a dictionary string into a named list
+parse_dict <- function(dict_string) {
+  dict_string <- str_remove_all(dict_string, "^\\{|\\}$")
+  kv_pairs <- str_split(dict_string, ",\\s*")[[1]]
+  map(kv_pairs, function(pair) {
+    parts <- str_split(pair, ":\\s*", n = 2)[[1]]
+    key <- str_remove_all(parts[1], "^'|'$")
+    value <- str_remove_all(parts[2], "^'|'$")
+    # Convert to numeric if possible
+    if (str_detect(value, "^[0-9.]+$")) value <- as.numeric(value)
+    else if (str_detect(value, "^[0-9]+$")) value <- as.integer(value)
+    set_names(list(value), key)
+  }) %>% flatten()
+}
+
+# Function to parse a line
+parse_line <- function(line) {
+  filename <- str_trim(str_remove(line, "\\{.*\\}$"))
+  dict_str <- str_extract(line, "\\{.*\\}$")
+  dict <- parse_dict(dict_str)
+  tibble(file = filename, !!!dict)
+}
+
+# Parse all lines and bind into a tibble
+assembly_stats <- map_df(lines, parse_line)
+
+assembly_stats$Sample <- gsub("\\.chromosome$", "", assembly_stats$file)
+
+assembly_stats <- assembly_stats %>% relocate(Sample) %>% select(-file) %>%
+                    left_join(coverage, by="Sample") %>%
+                    left_join(checkm %>% select(Sample, Completeness, Contamination, Strain_Heterogeneity), by="Sample")
+                    
+                    
+assembly_stats <- assembly_stats %>% mutate(QA = ifelse(`N50 (contigs)` > 20000 & `# contigs` < 500 & XCoverage >= 30, "pass", "fail"))
 
 ###############################################
 ###   Gather AMRFinderPlus chromosome results
@@ -128,7 +176,7 @@ seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
   
 }))
   
-seqsero$Sample <- gsub("\\.chromosome.fasta$", "", seqsero$`Sample name`)
+seqsero$Sample <- basename(seqsero$`Output directory`)
 names(seqsero)[8:9] <- c("Predicted_Antigenic_Profile", "Predicted_Serotype")
 
 
@@ -188,6 +236,7 @@ phenotype <- resfinder %>% group_by(Sample) %>%
              
 resfinder_genotype <- resfinder %>% group_by(Sample) %>% 
   summarise(Resfinder_Genotype = paste(sort(unique(`Resistance gene`)), collapse = ", "))      
+  
 
 ###############################################
 ###       Make summary table
@@ -202,8 +251,7 @@ summary <- gtdbtk %>%
   left_join(phenotype, by="Sample") %>%
   left_join(amr_cr_summary, by="Sample") %>%
   left_join(mobtyper_summary, by="Sample") %>%
-  left_join(amr_plas_summary, by="Sample") %>%
-  left_join(checkm %>% select(Sample, Completeness, Contamination, Strain_Heterogeneity), by="Sample")
+  left_join(amr_plas_summary, by="Sample") 
 
 ###############################################
 ###       Write outputs
@@ -212,7 +260,7 @@ summary <- gtdbtk %>%
 write_csv(summary, out_file1)
 write_csv(seqsero_simple, out_file2)
 write_csv(plasmid_summary, out_file3)
-write_csv(quast, out_file4)
+write_csv(assembly_stats, out_file4)
 
 
 

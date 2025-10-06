@@ -1,3 +1,70 @@
+# -----------------------------------
+#    Initialize MOB-suite database
+# -----------------------------------
+
+rule mob_init:
+    output:
+        touch(os.path.join(output_dir,".mob_suite_db_initialized"))
+    conda:
+        "../envs/mob_suite.yaml"
+    shell:
+        """
+        MOB_DB=$(find .snakemake/conda -type d -path "*/mob_suite/databases" | head -n 1)
+        if [ -z "$MOB_DB" ]; then
+        echo "mob_suite database does not exist in conda environment, initializing..."
+            mob_init
+        fi
+        touch {output}
+        """
+
+# --------------------------------------------------------------------------
+#   Separate chromosome from plasmid(s), type plasmids and MGEs (MOB-suite)
+# --------------------------------------------------------------------------
+
+rule mobsuite:
+    input:
+        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
+        db_init = os.path.join(output_dir,".mob_suite_db_initialized")
+    output:
+        mob = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "chromosome.fasta"),
+        chrom = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
+        plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done"),
+        mobtyper = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "mobtyper_results.txt")
+    resources:
+        mem_mb = 1000,
+        time = "0-10:00:00",
+        threads = 1
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
+    conda: "../envs/mob_suite.yaml"
+    group: "group2"
+    shell:
+        """
+        # run mob_recon to reconstruct and type plasmids
+        mob_recon --infile {input.assembly} --outdir $(dirname {output.mob}) --force --unicycler_contigs -n {resources.threads}
+
+        # copy chromosome assembly to new directory
+        mkdir -p $(dirname {output.chrom})
+        cp {output.mob} {output.chrom}
+
+        # copy plasmid(s) to new directory
+        for f in $(dirname {output.mob})/plasmid*; do
+            if [ -f $f ]; then
+                base=$(basename $f)
+                cp $f $(dirname {output.plas})/{wildcards.sample}.$base
+            fi
+        done
+
+        # Always create mobtyper_results.txt in the absence of plasmid contigs
+        if [ ! -f {output.mobtyper} ]; then
+        touch {output.mobtyper}
+        fi
+
+        # create marker file to satisfy output
+        touch {output.plas}
+        """
+
+
 # --------------------------------------
 #   Initialize AMRFinderPlus database
 # --------------------------------------
@@ -32,7 +99,7 @@ rule annotate_amr:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "../envs/amrfinder.yaml"
-    group: "group2"
+    group: "group3"
     shell:
         """
         # annotate chromosomes
@@ -73,7 +140,7 @@ rule get_resfinder_species:
 
 rule resfinder:
     input:
-        assembly = os.path.join(output_dir, "samples", "{sample}", "spades", "contigs.fasta"),
+        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
         species_map = os.path.join(output_dir, "data", "resfinder_species.tsv")
     output:
         results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt")
