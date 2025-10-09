@@ -17,9 +17,9 @@ rule mob_init:
         touch {output}
         """
 
-# --------------------------------------------------------------------------
-#   Separate chromosome from plasmid(s), type plasmids and MGEs (MOB-suite)
-# --------------------------------------------------------------------------
+# -----------------------------------------------------------------
+#   Separate chromosome from plasmid(s), type plasmids (MOB-suite)
+# -----------------------------------------------------------------
 
 rule mobsuite:
     input:
@@ -40,7 +40,7 @@ rule mobsuite:
     group: "group2"
     shell:
         """
-        # run mob_recon to reconstruct and type plasmids
+        # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags
         mob_recon --infile {input.assembly} --outdir $(dirname {output.mob}) --force --unicycler_contigs -n {resources.threads}
 
         # copy chromosome assembly to new directory
@@ -157,3 +157,50 @@ rule resfinder:
         """
         python -m resfinder -ifa {input.assembly} -o $(dirname {output.results_dir}) -s "{params.species}" -t 0.9 -l 0.6 --acquired --point --disinfectant -db_res {params.res_db} -db_point {params.pt_db} -db_disinf {params.dis_db}
         """
+
+# --------------------------------
+#      MobileElementFinder setup
+# --------------------------------
+
+rule mef_init:
+    output:
+        mef_init = os.path.join(output_dir, "bin", ".mef_initialized")
+    shell:
+        """
+        mkdir -p $(dirname {output.mef_init}) && cd $(dirname {output.mef_init})
+        
+        # Clone MobileElementFinder if not already present
+        if [ ! -d MobileElementFinder-1.1.2 ]; then
+            wget https://files.pythonhosted.org/packages/42/09/7709dfe81fc6b695159c3cdc3d341b279af81e4e9986e545379642f07117/MobileElementFinder-1.1.2.tar.gz
+            tar -xvf MobileElementFinder-1.1.2.tar.gz
+            rm MobileElementFinder-1.1.2.tar.gz
+            touch {output.mef_init}
+        else
+            echo "MobileElementFinder already exists, skipping"
+        fi
+        """
+
+# ------------------------------------------------------
+#     Comprehensively screen MGEs (MobileElementFinder)
+# ------------------------------------------------------
+
+rule mef:
+    input:
+        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        mef_init = os.path.join(output_dir, "bin", ".mef_initialized")
+    output:
+        mef = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv")
+    shell:
+        """
+        mkdir -p $(dirname {output.mef})
+        
+        python $(dirname {input.mef_init})/MobileElementFinder-1.1.2/mobileElementFinder.py find -c {input.assembly} $(dirname {output.mef})/{wildcards.sample} --temp-dir $(dirname {output.mef})
+        
+        """
+
+
+
+
+
+
+

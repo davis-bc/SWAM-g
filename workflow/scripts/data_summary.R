@@ -218,7 +218,6 @@ mobtyper_summary <- mobtyper %>% group_by(Sample) %>% summarise(n_Plasmid = leng
                                                                 Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = ", "), 
                                                                 Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = ", "))
 
-
 plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") %>% relocate(Name)
 
 ###############################################
