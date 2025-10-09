@@ -7,9 +7,9 @@ rule fastp_and_unicylcer:
         r1 = get_r1,
         r2 = get_r2
     output:
-        r1_clean = protected(os.path.join(output_dir, "samples", "{sample}", "{sample}_R1.clean.fastq.gz")),
-        r2_clean = protected(os.path.join(output_dir, "samples", "{sample}", "{sample}_R2.clean.fastq.gz")),
-        unicycler = protected(os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"))
+        r1_clean = protected(os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz")),
+        r2_clean = protected(os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")),
+        unicycler = protected(os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"))
     params:
         html = "/dev/null/",
         json = "/dev/null/"
@@ -37,9 +37,9 @@ rule fastp_and_unicylcer:
 
 rule map_and_calculate_coverage:
     input:
-        fasta = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
-        r1 = os.path.join(output_dir, "samples", "{sample}", "{sample}_R1.clean.fastq.gz"),
-        r2 = os.path.join(output_dir, "samples", "{sample}", "{sample}_R2.clean.fastq.gz")
+        fasta = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        r1 = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
+        r2 = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     output:
         bam = os.path.join(output_dir, "data", "bams", "{sample}.bam"),
         coverage = os.path.join(output_dir, "data", "bams", "{sample}_coverage.tsv")

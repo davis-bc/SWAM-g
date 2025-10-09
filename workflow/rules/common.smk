@@ -54,6 +54,7 @@ def get_r1(wildcards):
 def get_r2(wildcards):
     return sample_to_files[wildcards.sample]['r2']
 
+
 # -------------------------------------------------------------
 #   Define function for inserting species names into Resfinder
 # -------------------------------------------------------------
@@ -67,4 +68,4 @@ def load_resfinder_species_map(path):
                 species_map[row['sample']] = row['species']
     return species_map
 
-resfinder_species_map = load_resfinder_species_map(os.path.join(output_dir, "data", "resfinder_species.tsv"))
+resfinder_species_map = load_resfinder_species_map(os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv"))

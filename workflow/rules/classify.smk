@@ -4,7 +4,7 @@
 
 rule checkm:
     input:
-        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
     output:
         checkm = os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         checkm_stats = os.path.join(output_dir, "data", "checkm", "storage", "bin_stats.analyze.tsv")
@@ -22,7 +22,7 @@ rule checkm:
         # CheckM
         export CHECKM_DATA_PATH={params.checkm_db}
         mkdir -p $(dirname {output.checkm})
-        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads}
+        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads} --tmpdir $(dirname {output.checkm})
         checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
         """
 
@@ -33,7 +33,7 @@ rule checkm:
 
 rule gtdbtk:
     input:
-        assembly = expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
     output:
         gtdbtk = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
     resources:

@@ -21,7 +21,7 @@ include: "rules/classify.smk"
 include: "rules/serotype.smk"
 include: "rules/summary_output.smk"
 
-localrules: mob_init, afp_init, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
+localrules: mob_init, afp_init, setup_ectyper, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline
@@ -29,16 +29,18 @@ localrules: mob_init, afp_init, annotate_amr, mlst, get_resfinder_species, seqse
 
 rule all:
     input:
-        expand(os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
+        expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
         expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
         expand(os.path.join(output_dir, "data", "bams", "{sample}.bam"), sample=samples),
         os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
         os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
         os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
-        os.path.join(output_dir, "data", "resfinder_species.tsv"),
-        expand(os.path.join(output_dir, "data", "SeqSero2", "{sample}", "SeqSero_result.tsv"), sample=samples),
+        os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv"),
+        expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples),
+        expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         os.path.join(output_dir, "results_summary.csv"),
         os.path.join(output_dir, "salmonella_serotype_all.csv"),
         os.path.join(output_dir, "plasmid_data_long.csv"),
-        os.path.join(output_dir, "QA_assembly_stats.csv")
+        os.path.join(output_dir, "QA_assembly_stats.csv"),
+        os.path.join(output_dir, "ecoli_serotype_all.csv")

@@ -23,13 +23,13 @@ rule mob_init:
 
 rule mobsuite:
     input:
-        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
-        db_init = os.path.join(output_dir,".mob_suite_db_initialized")
+        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        db_init = os.path.join(output_dir, ".mob_suite_db_initialized")
     output:
-        mob = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "chromosome.fasta"),
-        chrom = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
-        plas = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done"),
-        mobtyper = os.path.join(output_dir, "samples", "{sample}", "mob-suite", "mobtyper_results.txt")
+        mob = os.path.join(output_dir, "data", "mob-suite", "{sample}", "chromosome.fasta"),
+        chrom = os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
+        plas = os.path.join(output_dir, "data", "assemblies", "plasmids", ".{sample}.plasmids.done"),
+        mobtyper = os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt")
     resources:
         mem_mb = 1000,
         time = "0-10:00:00",
@@ -80,14 +80,15 @@ rule afp_init:
         touch {output}
         """
 
+
 # -------------------------------------------------------------------------------
 #   Detect AMR + Stress + Virulence in chromosomes and plasmids (AMRFinderPlus)
 # -------------------------------------------------------------------------------
 
 rule annotate_amr:
     input:
-        assembly = os.path.join(output_dir, "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
-        plasmid = os.path.join(output_dir, "assemblies", "plasmids", ".{sample}.plasmids.done"),
+        assembly = os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
+        plasmid = os.path.join(output_dir, "data", "assemblies", "plasmids", ".{sample}.plasmids.done"),
         db_init = os.path.join(output_dir,".afp_db_initialized")
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"),
@@ -127,7 +128,7 @@ rule get_resfinder_species:
     input:
         summary = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
     output:
-        species_map = os.path.join(output_dir, "data", "resfinder_species.tsv")
+        species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
     shell:
         """
         python workflow/scripts/get_resfinder_species.py {input.summary} {output.species_map}
@@ -140,8 +141,8 @@ rule get_resfinder_species:
 
 rule resfinder:
     input:
-        assembly = os.path.join(output_dir, "samples", "{sample}", "unicycler", "assembly.fasta"),
-        species_map = os.path.join(output_dir, "data", "resfinder_species.tsv")
+        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
     output:
         results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt")
     params:

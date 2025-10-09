@@ -1,7 +1,11 @@
 #!/usr/bin/env Rscript
 
-library(tidyverse)
-library(readr)
+libraries <- c("tidyverse")
+
+invisible(lapply(libraries, function(x) {
+  suppressMessages(suppressWarnings(library(x, character.only = T)))
+  }))
+
 
 # Input files
 checkm_file  <- snakemake@input[["checkm"]]
@@ -12,6 +16,7 @@ resfinder_files <- snakemake@input[["resfinder_files"]]
 amr_cr_files   <- snakemake@input[["amr_cr_files"]]
 amr_plas_done <- snakemake@input[["amr_plas_done"]]
 seqsero_files  <- snakemake@input[["seqsero_files"]]
+ectyper_files  <- snakemake@input[["ectyper_files"]]
 mobtyper_files   <- snakemake@input[["mobtyper_files"]]
 coverage_files  <- snakemake@input[["coverage_files"]]
 
@@ -21,6 +26,7 @@ out_file1 <- snakemake@output[[1]]
 out_file2 <- snakemake@output[[2]]
 out_file3 <- snakemake@output[[3]]
 out_file4 <- snakemake@output[[4]]
+out_file5 <- snakemake@output[[5]]
 
 ###############################################
 ###      Read in pre-generated tables
@@ -173,16 +179,26 @@ seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
   )
   if (is.null(x)) return(NULL)
   x
-  
 }))
   
 seqsero$Sample <- basename(seqsero$`Output directory`)
 names(seqsero)[8:9] <- c("Predicted_Antigenic_Profile", "Predicted_Serotype")
 
-
 seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identification`)) %>%
   relocate(Sample) %>% select(-c(`Sample name`, `Output directory`))
-
+  
+  
+ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
+  x <- tryCatch(
+    read_tsv(f, col_types = cols(.default = col_character())),
+    error=function(e) NULL
+  )
+  if (is.null(x)) return(NULL)
+  x$Sample <- basename(dirname(f))
+  x
+}))
+  
+ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
 
 ###############################################
 ### Gather MOB-suite MGE data
@@ -191,7 +207,7 @@ seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identificati
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
   if (is.null(x)) return(NULL)
-  x$Sample <- str_match(f, "(?<=samples/)(.*?)(?=/mob-suite)")[, 2]
+  x$Sample <- basename(dirname(f))
   x
 }))
 
@@ -261,6 +277,6 @@ write_csv(summary, out_file1)
 write_csv(seqsero_simple, out_file2)
 write_csv(plasmid_summary, out_file3)
 write_csv(assembly_stats, out_file4)
-
+write_csv(ectyper_simple, out_file5)
 
 
