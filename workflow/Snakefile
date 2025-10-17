@@ -41,7 +41,8 @@ rule all:
         expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         os.path.join(output_dir, "results_summary.csv"),
-        os.path.join(output_dir, "salmonella_serotype_all.csv"),
+        os.path.join(output_dir, "serotype_salmonella.csv"),
         os.path.join(output_dir, "plasmid_data_long.csv"),
         os.path.join(output_dir, "QA_assembly_stats.csv"),
-        os.path.join(output_dir, "ecoli_serotype_all.csv")
+        os.path.join(output_dir, "serotype_ecoli.csv"),
+        os.path.join(output_dir, "contig_map.csv")

@@ -14,13 +14,16 @@ rule summarize_results:
         seqsero_files = expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples),
         mobtyper_files = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt"), sample=samples),
         coverage_files = expand(os.path.join(output_dir, "data", "bams", "{sample}_coverage.tsv"), sample=samples),
-        ectyper_files = expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples)
+        ectyper_files = expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
+        mef_files = expand(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"), sample=samples),
+        contig_files = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt"), sample=samples)
     output:
         summary = os.path.join(output_dir, "results_summary.csv"),
-        seqs2 = os.path.join(output_dir, "salmonella_serotype_all.csv"),
+        seqs2 = os.path.join(output_dir, "serotype_salmonella.csv"),
         plasmid_summary = os.path.join(output_dir, "plasmid_data_long.csv"),
         assembly = os.path.join(output_dir, "QA_assembly_stats.csv"),
-        ect = os.path.join(output_dir, "ecoli_serotype_all.csv")
+        ect = os.path.join(output_dir, "serotype_ecoli.csv"),
+        contigs = os.path.join(output_dir, "contig_map.csv")
     conda:
         "../envs/Renv.yaml"
     script:

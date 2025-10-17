@@ -8,17 +8,20 @@ invisible(lapply(libraries, function(x) {
 
 
 # Input files
-checkm_file  <- snakemake@input[["checkm"]]
-checkm_stats  <- snakemake@input[["checkm_stats"]]
-gtdbtk_file  <- snakemake@input[["gtdbtk"]]
-mlst_file    <- snakemake@input[["mlst"]]
+
+checkm_file     <- snakemake@input[["checkm"]]
+checkm_stats    <- snakemake@input[["checkm_stats"]]
+gtdbtk_file     <- snakemake@input[["gtdbtk"]]
+mlst_file       <- snakemake@input[["mlst"]]
 resfinder_files <- snakemake@input[["resfinder_files"]]
-amr_cr_files   <- snakemake@input[["amr_cr_files"]]
-amr_plas_done <- snakemake@input[["amr_plas_done"]]
-seqsero_files  <- snakemake@input[["seqsero_files"]]
-ectyper_files  <- snakemake@input[["ectyper_files"]]
-mobtyper_files   <- snakemake@input[["mobtyper_files"]]
+amr_cr_files    <- snakemake@input[["amr_cr_files"]]
+amr_plas_done   <- snakemake@input[["amr_plas_done"]]
+seqsero_files   <- snakemake@input[["seqsero_files"]]
+ectyper_files   <- snakemake@input[["ectyper_files"]]
+mobtyper_files  <- snakemake@input[["mobtyper_files"]]
 coverage_files  <- snakemake@input[["coverage_files"]]
+mef_files       <- snakemake@input[["mef_files"]]
+contig_files    <- snakemake@input[["contig_files"]]
 
 # Output files
 
@@ -27,6 +30,7 @@ out_file2 <- snakemake@output[[2]]
 out_file3 <- snakemake@output[[3]]
 out_file4 <- snakemake@output[[4]]
 out_file5 <- snakemake@output[[5]]
+out_file6 <- snakemake@output[[6]]
 
 ###############################################
 ###      Read in pre-generated tables
@@ -201,7 +205,7 @@ ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
 ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
 
 ###############################################
-### Gather MOB-suite MGE data
+###       Gather MOB-suite MGE data
 ###############################################
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
@@ -254,19 +258,83 @@ resfinder_genotype <- resfinder %>% group_by(Sample) %>%
   
 
 ###############################################
+###        PointFinder + DisinFinder
+###############################################
+
+# pf_files <- list.files("resfinder", pattern = "PointFinder_results.txt", recursive = 1, full.names = T)
+# 
+# pf <- do.call(bind_rows, lapply(pf_files, function(f) {
+#   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+#   if (is.null(x)) return(NULL)
+#   x$Sample <- basename(dirname(f))
+#   x
+# }))
+# 
+# df_files <- list.files("resfinder", pattern = "DisinFinder_results_tab.txt", recursive = 1, full.names = T)
+# 
+# df <- do.call(bind_rows, lapply(df_files, function(f) {
+#   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+#   if (is.null(x)) return(NULL)
+#   x$Sample <- basename(dirname(f))
+#   x
+# }))
+
+
+#################################################
+###       Make plasmid, AMR, MGE contig map
+#################################################
+
+mef <- do.call(rbind, lapply(mef_files, function(path) {
+  x <- read.csv(path, stringsAsFactors = FALSE, skip = 5, header = T)
+  x$Sample <- basename(dirname(path))
+  x
+}))
+
+mef <- mef %>% mutate(contig.num = str_split_i(contig, " ", 1)) %>%
+               select(Sample, contig.num, name, type, start, end) %>%
+               rename(gene=name) %>%
+               mutate(strand="positive")
+               
+
+contigs <- do.call(bind_rows, lapply(contig_files, function(f) {
+  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+  if (is.null(x)) return(NULL)
+  x$Sample <- basename(dirname(f))
+  x
+}))
+
+contigs <- contigs %>% mutate(contig.num = str_split_i(contig_id, " ", 1)) %>% 
+                       select(Sample, contig_id, molecule_type, contig.num)
+
+afp_total <- rbind(amr_cr %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand),
+                   amr_plas %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand)) %>%
+              rename(contig.num=`Contig id`,
+                     gene=`Element symbol`,
+                     start=Start,
+                     end=Stop,
+                     strand=Strand,
+                     type=Type) %>%
+              mutate(strand=ifelse(strand=="+", "positive", "negative"))
+
+
+amr_mge_total <- rbind(afp_total, mef)
+
+contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num"))               
+
+
+###############################################
 ###       Make summary table
 ###############################################
 
-summary <- gtdbtk %>%
-  select(Sample, Species) %>%
-  left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
-  left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
-  left_join(afp_genotype, by="Sample") %>%
-  left_join(resfinder_genotype, by="Sample") %>%
-  left_join(phenotype, by="Sample") %>%
-  left_join(amr_cr_summary, by="Sample") %>%
-  left_join(mobtyper_summary, by="Sample") %>%
-  left_join(amr_plas_summary, by="Sample") 
+summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
+              left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
+              left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
+              left_join(afp_genotype, by="Sample") %>%
+              left_join(resfinder_genotype, by="Sample") %>%
+              left_join(phenotype, by="Sample") %>%
+              left_join(amr_cr_summary, by="Sample") %>%
+              left_join(mobtyper_summary, by="Sample") %>%
+              left_join(amr_plas_summary, by="Sample") 
 
 ###############################################
 ###       Write outputs
@@ -277,5 +345,5 @@ write_csv(seqsero_simple, out_file2)
 write_csv(plasmid_summary, out_file3)
 write_csv(assembly_stats, out_file4)
 write_csv(ectyper_simple, out_file5)
-
+write_csv(contig_map, out_file6)
 
