@@ -21,7 +21,7 @@ include: "rules/classify.smk"
 include: "rules/serotype.smk"
 include: "rules/summary_output.smk"
 
-localrules: mob_init, afp_init, mef_init, mef, setup_ectyper, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
+localrules: mob_init, afp_init, mef_init, msf_init, txsscan, mef, setup_ectyper, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline
@@ -40,9 +40,5 @@ rule all:
         expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples),
         expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
-        os.path.join(output_dir, "results_summary.csv"),
-        os.path.join(output_dir, "serotype_salmonella.csv"),
-        os.path.join(output_dir, "plasmid_data_long.csv"),
-        os.path.join(output_dir, "QA_assembly_stats.csv"),
-        os.path.join(output_dir, "serotype_ecoli.csv"),
-        os.path.join(output_dir, "contig_map.csv")
+        expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"), sample=samples),
+        os.path.join(output_dir, "SWAM-g_results.xlsx")

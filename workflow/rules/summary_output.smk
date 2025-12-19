@@ -18,12 +18,7 @@ rule summarize_results:
         mef_files = expand(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"), sample=samples),
         contig_files = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt"), sample=samples)
     output:
-        summary = os.path.join(output_dir, "results_summary.csv"),
-        seqs2 = os.path.join(output_dir, "serotype_salmonella.csv"),
-        plasmid_summary = os.path.join(output_dir, "plasmid_data_long.csv"),
-        assembly = os.path.join(output_dir, "QA_assembly_stats.csv"),
-        ect = os.path.join(output_dir, "serotype_ecoli.csv"),
-        contigs = os.path.join(output_dir, "contig_map.csv")
+        summary = os.path.join(output_dir, "SWAM-g_results.xlsx")
     conda:
         "../envs/Renv.yaml"
     script:

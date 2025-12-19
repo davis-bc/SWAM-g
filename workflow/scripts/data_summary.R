@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-libraries <- c("tidyverse")
+libraries <- c("tidyverse", "writexl")
 
 invisible(lapply(libraries, function(x) {
   suppressMessages(suppressWarnings(library(x, character.only = T)))
@@ -26,11 +26,13 @@ contig_files    <- snakemake@input[["contig_files"]]
 # Output files
 
 out_file1 <- snakemake@output[[1]]
-out_file2 <- snakemake@output[[2]]
-out_file3 <- snakemake@output[[3]]
-out_file4 <- snakemake@output[[4]]
-out_file5 <- snakemake@output[[5]]
-out_file6 <- snakemake@output[[6]]
+#out_file2 <- snakemake@output[[2]]
+#out_file3 <- snakemake@output[[3]]
+#out_file4 <- snakemake@output[[4]]
+#out_file5 <- snakemake@output[[5]]
+#out_file6 <- snakemake@output[[6]]
+
+
 
 ###############################################
 ###      Read in pre-generated tables
@@ -340,10 +342,25 @@ summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
 ###       Write outputs
 ###############################################
  
-write_csv(summary, out_file1)
-write_csv(seqsero_simple, out_file2)
-write_csv(plasmid_summary, out_file3)
-write_csv(assembly_stats, out_file4)
-write_csv(ectyper_simple, out_file5)
-write_csv(contig_map, out_file6)
+#write_csv(summary, out_file1)
+#write_csv(seqsero_simple, out_file2)
+#write_csv(plasmid_summary, out_file3)
+#write_csv(assembly_stats, out_file4)
+#write_csv(ectyper_simple, out_file5)
+#write_csv(contig_map, out_file6)
+
+###############################################
+###       Write outputs
+###############################################
+ 
+df_names <- list(
+  "Summary" = summary,
+  "SeqSero" = seqsero_simple,
+  "Plasmid_Summary" = plasmid_summary,
+  "Assembly_Stats" = assembly_stats,
+  "ECTyper" = ectyper_simple,
+  "Contig_Map" = contig_map
+)
+
+write_xlsx(df_names, out_file1)
 

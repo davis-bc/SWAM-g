@@ -23,7 +23,7 @@ rule mob_init:
 
 rule mobsuite:
     input:
-        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
         db_init = os.path.join(output_dir, ".mob_suite_db_initialized")
     output:
         mob = os.path.join(output_dir, "data", "mob-suite", "{sample}", "chromosome.fasta"),
@@ -141,7 +141,7 @@ rule get_resfinder_species:
 
 rule resfinder:
     input:
-        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
         species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
     output:
         results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt")
@@ -186,7 +186,7 @@ rule mef_init:
 
 rule mef:
     input:
-        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
+        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
         mef_init = os.path.join(output_dir, "bin", ".mef_initialized")
     output:
         mef = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv")
@@ -197,7 +197,6 @@ rule mef:
         python $(dirname {input.mef_init})/MobileElementFinder-1.1.2/mobileElementFinder.py find -c {input.assembly} $(dirname {output.mef})/{wildcards.sample} --temp-dir $(dirname {output.mef})
         
         """
-
 
 
 
