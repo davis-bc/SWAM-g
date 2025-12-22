@@ -9,29 +9,27 @@ invisible(lapply(libraries, function(x) {
 
 # Input files
 
-checkm_file     <- snakemake@input[["checkm"]]
-checkm_stats    <- snakemake@input[["checkm_stats"]]
-gtdbtk_file     <- snakemake@input[["gtdbtk"]]
-mlst_file       <- snakemake@input[["mlst"]]
-resfinder_files <- snakemake@input[["resfinder_files"]]
-amr_cr_files    <- snakemake@input[["amr_cr_files"]]
-amr_plas_done   <- snakemake@input[["amr_plas_done"]]
-seqsero_files   <- snakemake@input[["seqsero_files"]]
-ectyper_files   <- snakemake@input[["ectyper_files"]]
-mobtyper_files  <- snakemake@input[["mobtyper_files"]]
-coverage_files  <- snakemake@input[["coverage_files"]]
-mef_files       <- snakemake@input[["mef_files"]]
-contig_files    <- snakemake@input[["contig_files"]]
+checkm_file          <- snakemake@input[["checkm"]]
+checkm_stats         <- snakemake@input[["checkm_stats"]]
+gtdbtk_file          <- snakemake@input[["gtdbtk"]]
+mlst_file            <- snakemake@input[["mlst"]]
+resfinder_files      <- snakemake@input[["resfinder_files"]]
+pf_files             <- snakemake@input[["pf_files"]]
+amr_cr_files         <- snakemake@input[["amr_cr_files"]]
+amr_plas_done        <- snakemake@input[["amr_plas_done"]]
+seqsero_files        <- snakemake@input[["seqsero_files"]]
+ectyper_files        <- snakemake@input[["ectyper_files"]]
+mobtyper_files       <- snakemake@input[["mobtyper_files"]]
+coverage_files       <- snakemake@input[["coverage_files"]]
+mef_files            <- snakemake@input[["mef_files"]]
+contig_files         <- snakemake@input[["contig_files"]]
+mobtyper_blast_files <- snakemake@input[["mobtyper_blast_files"]]
+txsscan_files        <- snakemake@input[["txsscan_files"]]
 
 # Output files
 
 out_file1 <- snakemake@output[[1]]
 #out_file2 <- snakemake@output[[2]]
-#out_file3 <- snakemake@output[[3]]
-#out_file4 <- snakemake@output[[4]]
-#out_file5 <- snakemake@output[[5]]
-#out_file6 <- snakemake@output[[6]]
-
 
 
 ###############################################
@@ -98,11 +96,10 @@ assembly_stats <- map_df(lines, parse_line)
 assembly_stats$Sample <- gsub("\\.chromosome$", "", assembly_stats$file)
 
 assembly_stats <- assembly_stats %>% relocate(Sample) %>% select(-file) %>%
-                    left_join(coverage, by="Sample") %>%
-                    left_join(checkm %>% select(Sample, Completeness, Contamination, Strain_Heterogeneity), by="Sample")
-                    
-                    
-assembly_stats <- assembly_stats %>% mutate(QA = ifelse(`N50 (contigs)` > 20000 & `# contigs` < 500 & XCoverage >= 30, "pass", "fail"))
+                  left_join(coverage, by="Sample") %>%
+                  left_join(checkm %>% select(Sample, Completeness, Contamination, Strain_Heterogeneity), by="Sample") %>% 
+                  mutate(QA = ifelse(`N50 (contigs)` > 20000 & `# contigs` < 500 & XCoverage >= 30, "pass", "fail")) %>% 
+                  select(Sample, `Genome size`, GC, `# contigs`,  `N50 (contigs)`, `Coding density`, XCoverage, Completeness, Contamination, Strain_Heterogeneity, QA)
 
 ###############################################
 ###   Gather AMRFinderPlus chromosome results
@@ -207,7 +204,7 @@ ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
 ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
 
 ###############################################
-###       Gather MOB-suite MGE data
+###       Gather MOB-suite plasmid data
 ###############################################
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
@@ -215,16 +212,32 @@ mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   if (is.null(x)) return(NULL)
   x$Sample <- basename(dirname(f))
   x
-}))
+})) %>% 
+    relocate(Sample) %>% 
+    mutate(Name = paste0(Sample, ".plasmid_", str_extract(sample_id, "(?<=assembly:)\\w+"))) %>%
+    separate(sample_id, into=c("meh", "primary_cluster_id"), sep = ":")
 
-mobtyper <- mobtyper[, c(ncol(mobtyper), 1:(ncol(mobtyper) - 1))]
-mobtyper <- mobtyper %>% mutate(Name = paste0(Sample, ".plasmid_", str_extract(sample_id, "(?<=assembly:)\\w+")))
+mobtyper_summary <- mobtyper %>% 
+                    group_by(Sample) %>% 
+                    summarise(n_Plasmid_Clusters = length(primary_cluster_id), 
+                                Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = " | "), 
+                                Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = " | "))
 
-mobtyper_summary <- mobtyper %>% group_by(Sample) %>% summarise(n_Plasmid = length(sample_id), 
-                                                                Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = ", "), 
-                                                                Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = ", "))
+plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") 
+plasmid_summary <- plasmid_summary %>% select(Name, Sample, primary_cluster_id, secondary_cluster_id, num_contigs, size, gc, `rep_type(s)`, `relaxase_type(s)`, mpf_type, `orit_type(s)`,
+                                              predicted_mobility, predicted_host_range_overall_rank, predicted_host_range_overall_name, observed_host_range_ncbi_rank, observed_host_range_ncbi_name,
+                                              reported_host_range_lit_rank, reported_host_range_lit_name, Start:`Closest reference name`)
 
-plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") %>% relocate(Name)
+mobtyper_blast <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
+  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+  if (is.null(x)) return(NULL)
+  x$Sample <- basename(dirname(f))
+  x
+})) %>% 
+      separate(qseqid, into = c("accession", "gene"), sep="\\|") %>%
+      mutate(contig.num = str_split_i(sseqid, " ", 1), sstrand=ifelse(sstrand=="minus", "negative", "positive")) %>%
+      select(Sample, contig.num, gene, biomarker, sstart, send, sstrand) %>%
+      rename(type=biomarker, start=sstart, end=send, strand=sstrand)
 
 ###############################################
 ###      Parse Resfinder phenotypes
@@ -263,15 +276,16 @@ resfinder_genotype <- resfinder %>% group_by(Sample) %>%
 ###        PointFinder + DisinFinder
 ###############################################
 
-# pf_files <- list.files("resfinder", pattern = "PointFinder_results.txt", recursive = 1, full.names = T)
-# 
-# pf <- do.call(bind_rows, lapply(pf_files, function(f) {
-#   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-#   if (is.null(x)) return(NULL)
-#   x$Sample <- basename(dirname(f))
-#   x
-# }))
-# 
+pf <- do.call(bind_rows, lapply(pf_files, function(f) {
+  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+  if (is.null(x)) return(NULL)
+  x$Sample <- basename(dirname(f))
+  x
+})) %>% 
+    group_by(Sample) %>%
+    summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
+
+
 # df_files <- list.files("resfinder", pattern = "DisinFinder_results_tab.txt", recursive = 1, full.names = T)
 # 
 # df <- do.call(bind_rows, lapply(df_files, function(f) {
@@ -281,32 +295,79 @@ resfinder_genotype <- resfinder %>% group_by(Sample) %>%
 #   x
 # }))
 
+###############################################
+###           TXSScan results
+###############################################
+
+
+parse_all_systems_file <- function(filepath) {
+  # Read the file while skipping comment lines (lines starting with '#')
+  data <- read_tsv(filepath, comment = "#", col_types = cols(.default = "c"))
+  
+  # Extract the corresponding system name for each block
+  lines <- readLines(filepath)
+  
+  # Get the system descriptions from the comments preceding each "replicon" block
+  system_descriptions <- tibble(line = lines) %>%
+    filter(str_starts(line, "#")) %>%
+    mutate(block = cumsum(str_detect(lead(line, default = ""), "^replicon"))) %>%
+    filter(!is.na(block), block > 0) %>%
+    group_by(block) %>%
+    summarise(system_name = str_remove(last(line), "^# "), .groups = "drop")
+  
+  # Add block-level system_name to data
+  data <- data %>%
+    mutate(block = cumsum(str_detect(replicon, "^replicon"))) %>%
+    left_join(system_descriptions, by = "block") %>%
+    select(-block) %>%
+    filter(!replicon == "replicon") %>%
+    mutate(Sample = sub(".prot", "", replicon)) %>%
+    relocate(Sample)
+  
+  return(data)
+}
+
+txsscan <- txsscan_files %>% 
+            lapply(parse_all_systems_file) %>% 
+            bind_rows() %>% 
+            separate(hit_id, into = c("contig.num", "orf.num"), sep="_") %>%
+            select(Sample, contig.num, gene_name, sys_id, hit_begin_match, hit_end_match) %>% 
+            mutate(strand="unknown", sys_id= sub(".*\\.prot_", "", sys_id)) %>%
+            rename(gene=gene_name, type=sys_id, start=hit_begin_match, end=hit_end_match)
+
 
 #################################################
-###       Make plasmid, AMR, MGE contig map
+###        MobileElementFinder Data
 #################################################
 
 mef <- do.call(rbind, lapply(mef_files, function(path) {
   x <- read.csv(path, stringsAsFactors = FALSE, skip = 5, header = T)
   x$Sample <- basename(dirname(path))
   x
-}))
-
-mef <- mef %>% mutate(contig.num = str_split_i(contig, " ", 1)) %>%
-               select(Sample, contig.num, name, type, start, end) %>%
-               rename(gene=name) %>%
-               mutate(strand="positive")
+})) %>% 
+    mutate(contig.num = str_split_i(contig, " ", 1)) %>%
+    select(Sample, contig.num, name, type, start, end) %>%
+    rename(gene=name) %>%
+    mutate(strand="positive") %>% 
+    mutate(type = str_replace_all(type, 
+                                    c("mite" = "miniature inverted repeat", 
+                                      "ice"  = "integrative conjugative element",
+                                      "ime"  = "integrative mobilizable element")))
                
+
+#################################################
+###           Contig mapping
+#################################################
 
 contigs <- do.call(bind_rows, lapply(contig_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
   if (is.null(x)) return(NULL)
   x$Sample <- basename(dirname(f))
   x
-}))
-
-contigs <- contigs %>% mutate(contig.num = str_split_i(contig_id, " ", 1)) %>% 
-                       select(Sample, contig_id, molecule_type, contig.num)
+})) %>% 
+  mutate(contig.num = str_split_i(contig_id, " ", 1)) %>% 
+  select(Sample, contig_id, circularity_status, molecule_type, primary_cluster_id, contig.num) %>%
+  left_join(mobtyper %>% select(Sample, primary_cluster_id, predicted_mobility, predicted_host_range_overall_name), by=c("Sample", "primary_cluster_id"))
 
 afp_total <- rbind(amr_cr %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand),
                    amr_plas %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand)) %>%
@@ -318,49 +379,40 @@ afp_total <- rbind(amr_cr %>% select(Sample, `Contig id`, `Element symbol`, Type
                      type=Type) %>%
               mutate(strand=ifelse(strand=="+", "positive", "negative"))
 
+amr_mge_total <- rbind(afp_total, mef, txsscan, mobtyper_blast)
 
-amr_mge_total <- rbind(afp_total, mef)
-
-contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num"))               
+contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num")) %>% select(-contig.num)         
 
 
 ###############################################
-###       Make summary table
+###         Gather all info
 ###############################################
 
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
-              left_join(mlst %>% select(Sample, Scheme, Sequence_Type), by="Sample") %>%
+              left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
               left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
               left_join(afp_genotype, by="Sample") %>%
               left_join(resfinder_genotype, by="Sample") %>%
               left_join(phenotype, by="Sample") %>%
+              left_join(pf %>% select(Sample, Pointfinder_Mutation), by="Sample") %>%
               left_join(amr_cr_summary, by="Sample") %>%
               left_join(mobtyper_summary, by="Sample") %>%
               left_join(amr_plas_summary, by="Sample") 
 
-###############################################
-###       Write outputs
-###############################################
- 
-#write_csv(summary, out_file1)
-#write_csv(seqsero_simple, out_file2)
-#write_csv(plasmid_summary, out_file3)
-#write_csv(assembly_stats, out_file4)
-#write_csv(ectyper_simple, out_file5)
-#write_csv(contig_map, out_file6)
-
-###############################################
-###       Write outputs
-###############################################
- 
 df_names <- list(
-  "Summary" = summary,
-  "SeqSero" = seqsero_simple,
-  "Plasmid_Summary" = plasmid_summary,
-  "Assembly_Stats" = assembly_stats,
-  "ECTyper" = ectyper_simple,
-  "Contig_Map" = contig_map
+  "summary_out" = summary,
+  "assembly_QA" = assembly_stats,
+  "MOBrecon_summary" = plasmid_summary,
+  "contig_map" = contig_map,
+  "salmonella_serotype" = seqsero_simple,
+  "ecoli_serotype" = ectyper_simple
 )
 
+
+###############################################
+###             Write outputs
+###############################################
+
 write_xlsx(df_names, out_file1)
+#write_json(df_names, out_file2)
 

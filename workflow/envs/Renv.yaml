@@ -5,3 +5,4 @@ dependencies:
   - r-base
   - r-tidyverse
   - r-writexl
+  - r-jsonlite=1.8.9

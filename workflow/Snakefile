@@ -42,3 +42,4 @@ rule all:
         expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"), sample=samples),
         os.path.join(output_dir, "SWAM-g_results.xlsx")
+        #os.path.join(output_dir, "SWAM-g_results.json")

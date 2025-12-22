@@ -138,7 +138,7 @@ rule txsscan:
         prodigal -i {input.assembly} -a {output.prot} -q > /dev/null
         
         # run TXSScan on protiens
-        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $(dirname {input.models}) -o $(dirname {output.sys}) > /dev/null
+        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $(dirname {input.models}) -o $(dirname {output.sys}) --force > /dev/null
         
         """
 

@@ -5,3 +5,4 @@ dbs/**
 .snakemake/**
 .snakemake
 run_snakemake.sh
+summary_script_test.R
