@@ -8,20 +8,22 @@
 #   Load configuration
 # ------------------------
 
-configfile: "config/config.yaml"
+#configfile: "config/config.yaml"
 
 # ---------------
 #   Load rules
 # ---------------
 
 include: "rules/common.smk"
+include: "rules/setup.smk"
 include: "rules/assemble.smk"
-include: "rules/annotate_amr.smk"
+include: "rules/annotate.smk"
 include: "rules/classify.smk"
 include: "rules/serotype.smk"
-include: "rules/summary_output.smk"
+include: "rules/summarize.smk"
 
-localrules: mob_init, afp_init, mef_init, msf_init, txsscan, mef, setup_ectyper, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, summarize_results
+
+localrules: mob_init, afp_init, mef_init, txsscan_init, res_init, checkm_init, txsscan, mef, annotate_amr, mlst, get_resfinder_species, seqsero, resfinder, ectyper, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline
@@ -29,17 +31,5 @@ localrules: mob_init, afp_init, mef_init, msf_init, txsscan, mef, setup_ectyper,
 
 rule all:
     input:
-        expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
-        expand(os.path.join(output_dir, "data", "amrfinderplus", "chromosomes", "{sample}.afp.tsv"), sample=samples),
-        expand(os.path.join(output_dir, "data", "bams", "{sample}.bam"), sample=samples),
-        expand(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"), sample=samples),
-        os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
-        os.path.join(output_dir, "data", "checkm", "genome.stats.tsv"),
-        os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
-        os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv"),
-        expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples),
-        expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
-        expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
-        expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"), sample=samples),
         os.path.join(output_dir, "SWAM-g_results.xlsx")
         #os.path.join(output_dir, "SWAM-g_results.json")

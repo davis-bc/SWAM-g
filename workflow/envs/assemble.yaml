@@ -4,8 +4,11 @@ channels:
   - defaults
 dependencies:
   - python >=3.4
-  - gcc  # or clang, but gcc is default on Linux
+  - gcc
+  - gxx_linux-64
   - spades >=3.14.0
+  - minimap2
+  - samtools
   - fastp
   - racon
   - blast

@@ -17,9 +17,7 @@ snakemake --profile config/slurm/ \
           --use-conda \
           --conda-frontend conda \
           -j 10 \
-          --local-cores 1 \
-          --group-components group1=3 group2=3 group3=3 \
-	  --keep-incomplete --rerun-incomplete
+          --local-cores 1 --rerun-incomplete
 #	  --cleanup-metadata /work/NRSAAMR/Projects/SWAM/WGS/output/data/gtdb-tk/gtdbtk.bac120.summary.tsv /work/NRSAAMR/Projects/SWAM/WGS/output/data/checkm/genome.stats.tsv /work/NRSAAMR/Projects/SWAM/WGS/output/data/checkm/storage/bin_stats.analyze.tsv
 
 #snakemake --report report.html --config in_dir="$input" out_dir="$output" --configfile config/config.yaml

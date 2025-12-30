@@ -3,14 +3,4 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python>=3.6
-  - samtools
-  - bowtie2
-  - mash
-  - bcftools
-  - blast
-  - seqtk
-  - pandas
-  - pip
-  - pip:
-      - "biopython<=1.85"
+  - ectyper>=2.0.0

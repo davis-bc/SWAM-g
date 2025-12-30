@@ -4,7 +4,8 @@
 
 rule checkm:
     input:
-        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
+        checkm = os.path.join(output_dir, "data", "checkm", ".checkm_initialized")
     output:
         checkm = protected(os.path.join(output_dir, "data", "checkm", "genome.stats.tsv")),
         checkm_stats = os.path.join(output_dir, "data", "checkm", "storage", "bin_stats.analyze.tsv")
@@ -15,15 +16,32 @@ rule checkm:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "checkm.txt")
     conda: "../envs/checkm.yaml"
-    params:
-            checkm_db=config["checkm_db"]
     shell:
         """
-        # CheckM
-        export CHECKM_DATA_PATH={params.checkm_db}
+        # Check for the checkm_data directory in dbs/
+        CHECKM_DB_PATH=$(find dbs -type d -name 'checkm_data' -maxdepth 1)
+        
+        # Ensure the checkm_data directory exists
+        if [ ! -d "$CHECKM_DB_PATH" ]; then
+            echo "Error: CHECKM_DATA_PATH (dbs/checkm_data) not found."
+            exit 1
+        fi
+
+        # Set CheckM database path environment variable
+        export CHECKM_DATA_PATH=$CHECKM_DB_PATH
+
+        echo "Using CHECKM_DATA_PATH=$CHECKM_DATA_PATH"
+
+        # Create output directories
         mkdir -p $(dirname {output.checkm})
+        mkdir -p $(dirname {output.checkm_stats})
+
+        # Run CheckM lineage workflow
         checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads} --tmpdir $(dirname {output.checkm})
+        
+        # Generate QA report
         checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
+        
         """
 
 
@@ -33,7 +51,8 @@ rule checkm:
 
 rule gtdbtk:
     input:
-        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
+        gtdb = os.path.join(output_dir, "data", "gtdb-tk", ".gtdb_initialized")
     output:
         gtdbtk = protected(os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"))
     resources:
@@ -43,14 +62,28 @@ rule gtdbtk:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
     conda: "../envs/gtdb.yaml"
-    params:
-            gtdbtk_db=config["gtdbtk_db"]
     shell:
         """
-        # GTDB-tk
-        export GTDBTK_DATA_PATH={params.gtdbtk_db}
+        # Dynamically find the GTDB release directory
+        GTDB_PATH=$(find dbs -type d -name 'release*' -maxdepth 1)
+        
+        # Ensure the GTDB release directory exists
+        if [ ! -d "$GTDB_PATH" ]; then
+            echo "Error: GTDB release directory not found in dbs/."
+            exit 1
+        fi
+
+        # Export GTDB data path for GTDB-tk
+        export GTDBTK_DATA_PATH=$GTDB_PATH
+
+        echo "Using GTDBTK_DATA_PATH=$GTDBTK_DATA_PATH"
+
+        # Create output directory
         mkdir -p $(dirname {output.gtdbtk})
+
+        # Run GTDB-tk classify workflow
         gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
+        
         """
 
 

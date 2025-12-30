@@ -13,8 +13,6 @@ rule mlst:
     shell:
         """
         
-        # MLST
-        mkdir -p $(dirname {output.mlst})
         mlst $(dirname {input.assembly[0]})/*.fasta --quiet > {output.mlst}
         
         """
@@ -25,7 +23,7 @@ rule mlst:
 
 rule seqsero:
     input:
-        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta")
+        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta")
     output:
         sq2 = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv")
     benchmark:
@@ -34,43 +32,10 @@ rule seqsero:
     shell:
         """
         
-        mkdir -p $(dirname {output.sq2})
-        SeqSero2_package.py -m k -t 4 -i {input.assembly} -d $(dirname {output.sq2})
+        SeqSero2_package.py -m k -t 4 -i {input.assembly} -d $(dirname {output.sq2}) > /dev/null 2>&1
         
         """
 
-
-# ----------------------------------------
-#     ECTyper install and database setup
-# ----------------------------------------
-
-rule setup_ectyper:
-    output:
-        ecsetup = os.path.join(output_dir, "bin", ".ectyper_setup_done.txt")
-    conda:
-        "../envs/ectyper.yaml"
-    shell:
-        """
-        mkdir -p $(dirname {output.ecsetup}) && cd $(dirname {output.ecsetup})
-        
-        # Clone Ectyper if not already present
-        if [ ! -d ecoli_serotyping ]; then
-            git clone https://github.com/phac-nml/ecoli_serotyping.git
-            cd ecoli_serotyping
-            git checkout v2.0.0
-        else
-            cd ecoli_serotyping
-        fi
-
-        # Run pip install and capture output
-        INSTALL_LOG=$(pip install . 2>&1)
-
-        # Check for success message and create placeholder file accordingly
-        echo "$INSTALL_LOG" | grep "Successfully built ectyper" && \
-            echo "Ectyper setup completed successfully" > {output.ecsetup} && \
-            echo "Ectyper setup was successful. Environment and software are ready to use." || \
-            (echo "$INSTALL_LOG"; echo "Ectyper setup failed!"; exit 1)
-        """
 
 # --------------------------------------------
 #   Serotype and pathotype E. coli (ECTyper)
@@ -78,8 +43,8 @@ rule setup_ectyper:
 
 rule ectyper:
     input:
-        assembly = os.path.join(output_dir, "data", "unicylcer", "{sample}", "assembly.fasta"),
-        ecsetup = os.path.join(output_dir, "bin", ".ectyper_setup_done.txt")
+        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
+        ecsetup = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
     output:
         ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
     benchmark:
@@ -87,34 +52,8 @@ rule ectyper:
     conda: "../envs/ectyper.yaml"
     shell:
         """
-        
-        # ECTyper
-        mkdir -p $(dirname {output.ect})
-        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype
-        
-        """
 
-# --------------------------
-#    Initialize MacSyFinder
-# --------------------------
-
-rule msf_init:
-    output:
-        models = os.path.join(output_dir, "bin", "macsyfinder", "models", ".msf.setup.done")
-    conda:
-        "../envs/macsyfinder.yaml"
-    shell:
-        """
-        
-        MSF_DB="$(dirname {output.models})"
-        if [ ! -d "$MSF_DB" ]; then
-        echo "TXSScan models do not exist, initializing..."
-        
-        msf_data install TXSScan --target $(dirname {output.models})
-        
-        fi
-        
-        touch {output}
+        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype -r $(dirname {input.ecsetup})/refseq.genomes.k21s1000.msh > /dev/null 2>&1
         
         """
 
@@ -125,7 +64,7 @@ rule msf_init:
 rule txsscan:
     input:
         assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
-        models =   os.path.join(output_dir, "bin", "macsyfinder", "models", ".msf.setup.done")
+        models =   os.path.join(output_dir, "data", "txsscan", ".txsscan.setup.done")
     output:
         prot = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"),
         sys  = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv")
@@ -134,11 +73,13 @@ rule txsscan:
     conda: "../envs/macsyfinder.yaml"
     shell:
         """
+        models_dir="dbs/macsyfinder/models/"
+        
         # find all proteins in assembly
-        prodigal -i {input.assembly} -a {output.prot} -q > /dev/null
+        prodigal -i {input.assembly} -a {output.prot} -q > /dev/null 2>&1
         
         # run TXSScan on protiens
-        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $(dirname {input.models}) -o $(dirname {output.sys}) --force > /dev/null
+        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $models_dir -o $(dirname {output.sys}) --force > /dev/null 2>&1
         
         """
 

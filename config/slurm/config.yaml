@@ -1,4 +1,4 @@
-cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/{rule}.%j --cpus-per-task={threads} --mem={resources.mem_mb}M"
+cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --job-name {rule}.%j --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/{rule}.%j --cpus-per-task={threads} --mem={resources.mem_mb}M"
 jobs: 100
 default-resources:
   - mem_mb=20000

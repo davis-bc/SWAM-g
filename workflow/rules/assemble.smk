@@ -47,7 +47,9 @@ rule map_and_calculate_coverage:
         mem_mb = 10000,
         threads = 1,
         time = "0-01:00:00"
-    group: "group1"
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.coverage.txt")
+    conda: "../envs/assemble.yaml"
     shell:
         r"""
         # Map reads using minimap2
