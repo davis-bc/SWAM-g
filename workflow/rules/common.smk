@@ -69,3 +69,19 @@ def load_resfinder_species_map(path):
     return species_map
 
 resfinder_species_map = load_resfinder_species_map(os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv"))
+
+
+# -------------------------------------------------------------
+#   Define function for inserting organism names into AMRFinder
+# -------------------------------------------------------------
+
+def load_amrfinder_organism_map(path):
+    organism_map = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                organism_map[row['sample']] = row['amrfinderplus_organism']
+    return organism_map
+
+amrfinder_organism_map = load_amrfinder_organism_map(os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_species.tsv"))

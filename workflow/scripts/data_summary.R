@@ -25,11 +25,12 @@ mef_files            <- snakemake@input[["mef_files"]]
 contig_files         <- snakemake@input[["contig_files"]]
 mobtyper_blast_files <- snakemake@input[["mobtyper_blast_files"]]
 txsscan_files        <- snakemake@input[["txsscan_files"]]
+txsscan_files2       <- snakemake@input[["txsscan_files2"]]
 
 # Output files
 
 out_file1 <- snakemake@output[[1]]
-#out_file2 <- snakemake@output[[2]]
+out_file2 <- snakemake@output[[2]]
 
 
 ###############################################
@@ -170,6 +171,8 @@ amr_plas_summary <- amr_plas_summary %>%
   
 afp_genotype <- bind_rows(amr_cr, amr_plas) %>% filter(Type == "AMR") %>% group_by(Sample) %>%
                 summarise(AMRFinder_Genotype = paste(sort(unique(`Element symbol`)), collapse = ", "))
+                
+amrfinderplus_all <- rbind(amr_cr, amr_plas) %>% relocate(Sample) %>% select(-Name)
 
 ###############################################
 ###   Gather all Serotyping results
@@ -223,10 +226,13 @@ mobtyper_summary <- mobtyper %>%
                                 Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = " | "), 
                                 Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = " | "))
 
-plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") 
-plasmid_summary <- plasmid_summary %>% select(Name, Sample, primary_cluster_id, secondary_cluster_id, num_contigs, size, gc, `rep_type(s)`, `relaxase_type(s)`, mpf_type, `orit_type(s)`,
-                                              predicted_mobility, predicted_host_range_overall_rank, predicted_host_range_overall_name, observed_host_range_ncbi_rank, observed_host_range_ncbi_name,
-                                              reported_host_range_lit_rank, reported_host_range_lit_name, Start:`Closest reference name`)
+plasmid_summary <- left_join(mobtyper, amr_plas %>% select(-Sample), by="Name") %>% 
+                    select(Name, Sample, primary_cluster_id, secondary_cluster_id, num_contigs, 
+                            size, gc, `rep_type(s)`, `relaxase_type(s)`, mpf_type, `orit_type(s)`,
+                            predicted_mobility, predicted_host_range_overall_rank, 
+                            predicted_host_range_overall_name, observed_host_range_ncbi_rank, 
+                            observed_host_range_ncbi_name, reported_host_range_lit_rank, 
+                            reported_host_range_lit_name, Start:`Closest reference name`)
 
 mobtyper_blast <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
@@ -276,14 +282,21 @@ resfinder_genotype <- resfinder %>% group_by(Sample) %>%
 ###        PointFinder + DisinFinder
 ###############################################
 
-pf <- do.call(bind_rows, lapply(pf_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
-  x$Sample <- basename(dirname(f))
-  x
-})) %>% 
-    group_by(Sample) %>%
-    summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
+pf <- do.call(
+  bind_rows,
+  lapply(pf_files, function(f) {
+    x <- tryCatch(read_tsv(f, col_types = cols()), error = function(e) NULL)
+    if (is.null(x)) return(NULL)
+    x$Sample <- basename(dirname(f))
+    # Coerce `PMID` (or other problematic columns) to character for consistency
+    if ("PMID" %in% colnames(x)) {
+      x$PMID <- as.character(x$PMID)
+    }
+    x
+  })
+) %>%
+group_by(Sample) %>%
+summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
 
 
 # df_files <- list.files("resfinder", pattern = "DisinFinder_results_tab.txt", recursive = 1, full.names = T)
@@ -334,6 +347,52 @@ txsscan <- txsscan_files %>%
             select(Sample, contig.num, gene_name, sys_id, hit_begin_match, hit_end_match) %>% 
             mutate(strand="unknown", sys_id= sub(".*\\.prot_", "", sys_id)) %>%
             rename(gene=gene_name, type=sys_id, start=hit_begin_match, end=hit_end_match)
+
+
+#################################################
+###           TXXScan Models
+#################################################
+
+
+# Define a function to process a single file
+process_file <- function(file_path) {
+  # Read the file into a character vector
+  lines <- readLines(file_path)
+  
+  # Get the sample name from the sequence-db path
+  sequence_db_line <- lines[grep("--sequence-db", lines)]
+  sample_name <- str_match(sequence_db_line, ".*unicycler/(.+?)/.*\\.faa")[, 2]
+  
+  # Extract systems where wholeness > 0.50
+  model_lines <- grep("^model = ", lines, value = TRUE)
+  wholeness_lines <- grep("^wholeness = ", lines, value = TRUE)
+  
+  # Combine models with their wholeness values
+  systems_info <- data.frame(
+    model = str_match(model_lines, "model = .*?/(.+)$")[, 2],
+    wholeness = as.numeric(str_match(wholeness_lines, "wholeness = ([0-9.]+)")[, 2])
+  )
+  
+  # Filter identified systems based on wholeness > 0.50
+  valid_models <- systems_info %>%
+    filter(wholeness > 0.50) %>% 
+    pull(model)
+  
+  # Return a dataframe for this sample
+  data.frame(
+    Sample = sample_name,
+    TXSScan_Models_Present = paste(valid_models, collapse = " | ")
+  )
+}
+
+# Process all_systems.txt files in a list
+process_all_files <- function(file_list) {
+  bind_rows(map(file_list, process_file))
+}
+
+
+# Process files and create the final dataframe
+txsscan_mod <- process_all_files(txsscan_files2)
 
 
 #################################################
@@ -397,13 +456,14 @@ summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
               left_join(pf %>% select(Sample, Pointfinder_Mutation), by="Sample") %>%
               left_join(amr_cr_summary, by="Sample") %>%
               left_join(mobtyper_summary, by="Sample") %>%
-              left_join(amr_plas_summary, by="Sample") 
+              left_join(amr_plas_summary, by="Sample") %>%
+              left_join(txsscan_mod, by="Sample")
 
 df_names <- list(
   "summary_out" = summary,
+  "AMRFinderPlus" = amrfinderplus_all,
   "assembly_QA" = assembly_stats,
   "MOBrecon_summary" = plasmid_summary,
-  "contig_map" = contig_map,
   "salmonella_serotype" = seqsero_simple,
   "ecoli_serotype" = ectyper_simple
 )
@@ -414,5 +474,5 @@ df_names <- list(
 ###############################################
 
 write_xlsx(df_names, out_file1)
-#write_json(df_names, out_file2)
+write.csv(contig_map, out_file2)
 

@@ -32,7 +32,7 @@ rule seqsero:
     shell:
         """
         
-        SeqSero2_package.py -m k -t 4 -i {input.assembly} -d $(dirname {output.sq2}) > /dev/null 2>&1
+        SeqSero2_package.py -m k -t 4 -i {input.assembly} -d $(dirname {output.sq2}) 
         
         """
 
@@ -52,8 +52,8 @@ rule ectyper:
     conda: "../envs/ectyper.yaml"
     shell:
         """
-
-        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype -r $(dirname {input.ecsetup})/refseq.genomes.k21s1000.msh > /dev/null 2>&1
+        refseq="dbs/refseq.genomes.k21s1000.msh"
+        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype -r $refseq 
         
         """
 
@@ -67,7 +67,8 @@ rule txsscan:
         models =   os.path.join(output_dir, "data", "txsscan", ".txsscan.setup.done")
     output:
         prot = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"),
-        sys  = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv")
+        sys  = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"),
+        mods = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.txt")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.txsscan.txt")
     conda: "../envs/macsyfinder.yaml"
@@ -76,10 +77,10 @@ rule txsscan:
         models_dir="dbs/macsyfinder/models/"
         
         # find all proteins in assembly
-        prodigal -i {input.assembly} -a {output.prot} -q > /dev/null 2>&1
+        prodigal -i {input.assembly} -a {output.prot} -q 
         
         # run TXSScan on protiens
-        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $models_dir -o $(dirname {output.sys}) --force > /dev/null 2>&1
+        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $models_dir -o $(dirname {output.sys}) --force 
         
         """
 

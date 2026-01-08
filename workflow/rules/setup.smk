@@ -123,34 +123,7 @@ rule res_init:
         
         """    
 
-# --------------------------------
-#      MobileElementFinder setup
-# --------------------------------
-
-rule mef_init:
-    output:
-        touch(os.path.join(output_dir, "data", "mobileelementfinder", ".mef_initialized"))
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "init_mef.txt")
-    shell:
-        """
-        BIN="bin"
-        
-        mkdir -p $BIN && cd $BIN
-        
-        # Clone MobileElementFinder if not already present
-        if [ ! -d MobileElementFinder-1.1.2 ]; then
-            echo "MobileElementFinder does not exist, initializing..."
-            wget https://files.pythonhosted.org/packages/42/09/7709dfe81fc6b695159c3cdc3d341b279af81e4e9986e545379642f07117/MobileElementFinder-1.1.2.tar.gz > /dev/null 2>&1
-            tar -xvf MobileElementFinder-1.1.2.tar.gz > /dev/null 2>&1
-            rm MobileElementFinder-1.1.2.tar.gz
-        fi
-        
-        touch {output}
-        
-        """
-        
-
+    
 
 # ----------------------------------------
 #     ECTyper database setup

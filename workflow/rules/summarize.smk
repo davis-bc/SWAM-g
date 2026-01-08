@@ -19,10 +19,11 @@ rule summarize_results:
         mef_files            = expand(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"), sample=samples),
         contig_files         = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt"), sample=samples),
         mobtyper_blast_files = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "biomarkers.blast.txt"), sample=samples),
-        txsscan_files        = expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"), sample=samples)
+        txsscan_files        = expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"), sample=samples),
+        txsscan_files2       = expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.txt"), sample=samples)
     output:
-        xlsx = os.path.join(output_dir, "SWAM-g_results.xlsx")
-        #json = os.path.join(output_dir, "SWAM-g_results.json")
+        xlsx = os.path.join(output_dir, "SWAM-g_results.xlsx"),
+        csv  = os.path.join(output_dir, "contig_map.csv")
     conda:
         "../envs/Renv.yaml"
     script:
