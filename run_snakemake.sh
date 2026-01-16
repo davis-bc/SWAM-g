@@ -9,16 +9,16 @@
 
 cd /work/NRSAAMR/Projects/SWAM/WGS
 
-input="/work/NRSAAMR/Projects/EFLMR-Pilot/PRJNA1186125"
-output="/work/NRSAAMR/Projects/EFLMR-Pilot/WGS-Salmonella"
+input="/work/NRSAAMR/Projects/SWAM/SWAM-g_test/sra_downloads"
+output="/work/NRSAAMR/Projects/SWAM/SWAM-g_test/output"
 
 snakemake --profile config/slurm/ \
           --config in_dir="$input" out_dir="$output" \
           --use-conda \
           --conda-frontend conda \
-          -j 127 \
+          -j 1000 \
           --local-cores 1 \
-	  --rerun-incomplete
+	  --quiet --keep-incomplete --rerun-incomplete
 #	  --cleanup-metadata /work/NRSAAMR/Projects/SWAM/WGS/output/data/gtdb-tk/gtdbtk.bac120.summary.tsv /work/NRSAAMR/Projects/SWAM/WGS/output/data/checkm/genome.stats.tsv /work/NRSAAMR/Projects/SWAM/WGS/output/data/checkm/storage/bin_stats.analyze.tsv
 
 #snakemake --report report.html --config in_dir="$input" out_dir="$output" --configfile config/config.yaml

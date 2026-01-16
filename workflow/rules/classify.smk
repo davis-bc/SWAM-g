@@ -86,4 +86,35 @@ rule gtdbtk:
         
         """
 
+# ------------------------------------------------
+#    Compute pairwise ANI distance matrix (FastANI)
+# ------------------------------------------------
 
+rule fastani:
+    input:
+        assemblies = expand(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"), sample=samples)
+    output:
+        pairwise_matrix = os.path.join(output_dir, "pairwise_ani_matrix.tsv")
+    resources:
+        mem_mb = 80000,
+        time = "1-00:00:00",
+        threads = 32
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "fastani.txt")
+    conda: "../envs/gtdb.yaml"
+    shell:
+        """
+        # Create output directory
+        mkdir -p $(dirname {output.pairwise_matrix})
+
+        # Generate a list of input assemblies
+        assembly_list=$(mktemp)
+        printf "%s\\n" {input.assemblies} > $assembly_list
+
+        # Run FastANI with the --matrix flag to compute the pairwise ANI distance matrix
+        fastANI --ql $assembly_list --rl $assembly_list --matrix -o {output.pairwise_matrix} -t {resources.threads}
+
+        # Clean up temporary file
+        rm -f $assembly_list
+        
+        """
