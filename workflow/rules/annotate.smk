@@ -78,7 +78,7 @@ rule get_amrfinder_organism:
 #   Detect AMR + Stress + Virulence in chromosomes and plasmids (AMRFinderPlus)
 # -------------------------------------------------------------------------------
 
-rule annotate_amr:
+rule amrfinderplus:
     input:
         assembly = os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"),
         plasmid = os.path.join(output_dir, "data", "assemblies", "plasmids", ".{sample}.plasmids.done"),
@@ -165,18 +165,25 @@ rule mef:
     input:
         assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta")
     output:
-        mef = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv")
+        mef        = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"),
+        temp_fasta = temp(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.tmp.fasta"))
     resources:
         mem_mb = 1000,
-        time = "0-1:00:00",
+        time = "0-10:00:00",
         threads = 1
     conda: "../envs/mobileelementfinder.yaml"
+    params:
+        temp_dir = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mef.txt")
     shell:
         """
+        
+        # Preprocess FASTA headers into a temporary file
+        sed -E 's/^(>[^ ]+).*/\\1/' {input.assembly} > {output.temp_fasta}
 
-        mefinder find -c {input.assembly} $(dirname {output.mef})/{wildcards.sample} --temp-dir $(dirname {output.mef}) 
+        # Run mefinder on the temporary FASTA file
+        mefinder find -c {output.temp_fasta} $(dirname {output.mef})/{wildcards.sample} --temp-dir {params.temp_dir}
         
         """
 

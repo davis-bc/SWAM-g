@@ -14,9 +14,10 @@ rule fastp_and_unicylcer:
         html = "/dev/null/",
         json = "/dev/null/"
     resources:
-        mem_mb = 50000,
+        mem_mb = 150000,
         threads = 32,
         time = "1-00:00:00"
+    threads: 32
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.fastp_and_unicycler.txt")
     conda: "../envs/assemble.yaml"

@@ -1,6 +1,55 @@
-cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --job-name {rule}.%j --output=/work/NRSAAMR/Projects/SWAM/WGS/slurm/{rule}.%j --cpus-per-task={threads} --mem={resources.mem_mb}M"
-jobs: 100
+# config/slurm/config.yaml
+
+# ----------------------------------------------------
+#   Set default resources (if not specified in rules)
+# ----------------------------------------------------
+
 default-resources:
-  - mem_mb=20000
-  - threads=8
-  - time='1-00:00:00'
+  - mem_mb=50000
+  - threads=32
+  - time='6-00:00:00'
+  - slurm_dir='/work/NRSAAMR/Projects/SWAM/SWAM-g_test/slurm'
+
+# ---------------------------------------------
+#   Set default cluster submission command
+# ---------------------------------------------
+
+cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --job-name {rule}_%j --output {resources.slurm_dir}/{rule}_%j.out --cpus-per-task={resources.threads} --mem={resources.mem_mb}M"
+
+
+# ----------------------------
+#  Set global slurm limits
+# ----------------------------
+
+jobs: 115       # Max total simultaneous jobs on the cluster (max allowed per account)
+cores: 32       # Max cores per individual submitted job/group
+local-cores: 1  # Cores running local rules within driver job
+use-conda: True
+conda-frontend: conda
+
+# -----------------------------------------------------------
+#  Assign rules to specific groups (run samples in batches)
+# -----------------------------------------------------------
+
+groups:
+  mobsuite: mobsuite
+  amrfinderplus: amrfinderplus
+  resfinder: resfinder
+  mef: mef
+  seqsero: seqsero
+  ectyper: ectyper
+  txsscan: txsscan
+
+# -------------------------------------------------------------------------------------------
+#  Set the number of connected DAG components a group can span (batch size of each group)
+# -------------------------------------------------------------------------------------------
+
+group-components:
+  mobsuite: 100
+  amrfinderplus: 1000
+  resfinder: 1000
+  mef: 100
+  seqsero: 1000
+  ectyper: 1000
+  txsscan: 1000
+

@@ -6,7 +6,7 @@ import csv
 
 
 # ----------------------------------------------
-#   Build a mapping from sample R1 and R2 files
+#   Generalized Sample Parsing from FASTQ Files
 # ----------------------------------------------
 
 # Load config variables
@@ -15,43 +15,95 @@ output_dir = config["out_dir"]
 
 # Helper: extract sample name from fastq filename
 def extract_sample_name(filename):
+    """
+    Extracts the sample name from a FASTQ file, supporting common paired-end conventions.
+    """
     base = os.path.basename(filename)
     if base.endswith('.gz'):
-        base = base[:-3]
-    m = re.match(r"(.+?)(?:_R?1(?:_001)?|_1)(?:\.fastq)?$", base)
+        base = base[:-3]  # Remove ".gz"
+    # Match common paired-end naming conventions
+    m = re.match(r"(.+?)(?:_R?[12](?:_001)?|_[12])(?:\.fastq)?$", base)
     if m:
-        return m.group(1)
+        return m.group(1)  # Return sample name without paired-end suffix
     else:
-        return re.sub(r"(_R?1(?:_001)?|_1)(\.fastq)?(\.gz)?$", "", base)
+        raise ValueError(f"Cannot extract sample name from filename: {filename}")
 
-# Find R1/R2 files
+
+# Find R1 and R2 files
 r1_files = glob.glob(os.path.join(input_dir, "*R1*.fastq*")) + glob.glob(os.path.join(input_dir, "*_1.fastq*"))
 r2_files = glob.glob(os.path.join(input_dir, "*R2*.fastq*")) + glob.glob(os.path.join(input_dir, "*_2.fastq*"))
 
 # Map sample names to paired files
 sample_to_files = {}
 for r1 in r1_files:
-    sample = extract_sample_name(r1)
-    possible_r2s = [r1.replace('R1', 'R2'), r1.replace('_1', '_2')]
-    found_r2 = None
-    for r2_candidate in possible_r2s:
-        if os.path.exists(r2_candidate):
-            found_r2 = r2_candidate
-            break
-    if not found_r2:
-        for r2 in r2_files:
-            if extract_sample_name(r2) == sample:
+    try:
+        sample = extract_sample_name(r1)
+        r2_candidates = [r1.replace("_R1", "_R2"), r1.replace("_1", "_2")]  # Replace common patterns for R2
+        found_r2 = None
+        for r2 in r2_candidates:
+            if r2 in r2_files:
                 found_r2 = r2
                 break
-    if found_r2:
-        sample_to_files[sample] = {'r1': r1, 'r2': found_r2}
+        if not found_r2:
+            # Use a fallback check for unmatched R2 files
+            found_r2 = next((r for r in r2_files if extract_sample_name(r) == sample), None)
+        if found_r2:
+            sample_to_files[sample] = {'r1': r1, 'r2': found_r2}
+        else:
+            print(f"Warning: No matching R2 file found for R1: {r1}")
+    except ValueError as ve:
+        print(f"Skipping invalid file: {r1} ({ve})")
 
-samples = sorted(sample_to_files.keys())
+samples = sorted(sample_to_files.keys())  # All valid sample names
+
+
+# ----------------------------------------------
+#   Validation: Check Sample Consistency
+# ----------------------------------------------
+
+def validate_sample_counts():
+    """
+    Ensures the total number of valid paired samples matches the input directory.
+    """
+    total_r1_files = len(r1_files)
+    total_r2_files = len(r2_files)
+    total_samples = len(samples)
+
+    # Check if paired-end files align with the number of samples
+    if total_r1_files != total_r2_files:
+        print(
+            f"Validation Warning: Mismatch in number of R1 ({total_r1_files}) and R2 ({total_r2_files}) files. "
+            "Check input directory for unpaired FASTQ files."
+        )
+    
+    # Ensure there are no unexpected duplicates
+    if total_samples > total_r1_files or total_samples > total_r2_files:
+        print(
+            f"Validation Error: Detected more paired samples ({total_samples}) than available R1/R2 files. "
+            "Check for duplicate or ambiguous sample names."
+        )
+        raise ValueError("Sample count validation failed: More paired samples than available R1/R2 files.")
+
+    print(f"Total paired samples to process after validation = {total_samples}")
+
+# Perform sample validation
+validate_sample_counts()
+
+
+# ----------------------------------------------
+#   Define Wildcard Functions for Snakemake
+# ----------------------------------------------
 
 def get_r1(wildcards):
+    """
+    Retrieve the R1 file path for a given sample.
+    """
     return sample_to_files[wildcards.sample]['r1']
 
 def get_r2(wildcards):
+    """
+    Retrieve the R2 file path for a given sample.
+    """
     return sample_to_files[wildcards.sample]['r2']
 
 

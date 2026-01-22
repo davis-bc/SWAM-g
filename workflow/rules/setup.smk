@@ -166,7 +166,7 @@ rule txsscan_init:
         os.path.join(output_dir, "data", "benchmarks", "init_txsscan.txt")
     shell:
         """
-        MSF_DB="dbs/macysyfinder/models"
+        MSF_DB="dbs/macsyfinder/models"
         
         if [ ! -d "$MSF_DB" ]; then
             echo "TXSScan models do not exist, initializing..."

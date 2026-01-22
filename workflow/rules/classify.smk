@@ -13,6 +13,7 @@ rule checkm:
         mem_mb = 100000,
         time = "1-00:00:00",
         threads = 32
+    threads: 32
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "checkm.txt")
     conda: "../envs/checkm.yaml"
@@ -59,6 +60,7 @@ rule gtdbtk:
         mem_mb = 150000,
         time = "1-00:00:00",
         threads = 32
+    threads: 32
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
     conda: "../envs/gtdb.yaml"
@@ -85,6 +87,7 @@ rule gtdbtk:
         gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
         
         """
+"""
 
 # ------------------------------------------------
 #    Compute pairwise ANI distance matrix (FastANI)
@@ -103,7 +106,7 @@ rule fastani:
         os.path.join(output_dir, "data", "benchmarks", "fastani.txt")
     conda: "../envs/gtdb.yaml"
     shell:
-        """
+        
         # Create output directory
         mkdir -p $(dirname {output.pairwise_matrix})
 
@@ -117,4 +120,6 @@ rule fastani:
         # Clean up temporary file
         rm -f $assembly_list
         
-        """
+        
+
+"""
