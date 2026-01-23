@@ -1,44 +1,44 @@
 # config/slurm/config.yaml
 
+# ----------------------------
+#  Set global slurm limits
+# ----------------------------
+
+executor: slurm
+
+jobs: 100                   # Max number of simultaneous jobs submitted to slurm
+cores: 32                   # Max number of CPUs per job/group
+local-cores: 1              # Limit number of cores for local rules
+conda-frontend: conda       # conda or mamba
+use-conda: True             # Enable Conda integration
+keep-incomplete: True       # Keep incomplete output to prevent re-computation
+
+
 # ----------------------------------------------------
 #   Set default resources (if not specified in rules)
 # ----------------------------------------------------
 
 default-resources:
-  - mem_mb=50000
-  - threads=32
-  - time='6-00:00:00'
-  - slurm_dir='/work/NRSAAMR/Projects/SWAM/SWAM-g_test/slurm'
-
-# ---------------------------------------------
-#   Set default cluster submission command
-# ---------------------------------------------
-
-cluster: "sbatch --account=nrsaamr --partition=ord --time={resources.time} --job-name {rule}_%j --output {resources.slurm_dir}/{rule}_%j.out --cpus-per-task={resources.threads} --mem={resources.mem_mb}M"
-
-
-# ----------------------------
-#  Set global slurm limits
-# ----------------------------
-
-jobs: 115       # Max total simultaneous jobs on the cluster (max allowed per account)
-cores: 32       # Max cores per individual submitted job/group
-local-cores: 1  # Cores running local rules within driver job
-use-conda: True
-conda-frontend: conda
-
+  slurm_account: "nrsaamr"
+  slurm_partition: "ord"
+  mem_mb: 50000               
+  cpus_per_task: 8            
+  runtime: "6d"
+  slurm_logdir: "/work/NRSAAMR/Projects/SWAM/SWAM-g_test/slurm"
+ 
 # -----------------------------------------------------------
 #  Assign rules to specific groups (run samples in batches)
 # -----------------------------------------------------------
 
 groups:
-  mobsuite: mobsuite
-  amrfinderplus: amrfinderplus
-  resfinder: resfinder
-  mef: mef
-  seqsero: seqsero
-  ectyper: ectyper
-  txsscan: txsscan
+  mobsuite: "mobsuite"
+  amrfinderplus: "amrfinderplus"
+  resfinder: "resfinder"
+  mef: "mef"
+  seqsero: "seqsero"
+  ectyper: "ectyper"
+  txsscan: "txsscan"
+  coverage: "coverage"
 
 # -------------------------------------------------------------------------------------------
 #  Set the number of connected DAG components a group can span (batch size of each group)
@@ -46,10 +46,11 @@ groups:
 
 group-components:
   mobsuite: 100
-  amrfinderplus: 1000
-  resfinder: 1000
+  amrfinderplus: 100
+  resfinder: 100
   mef: 100
-  seqsero: 1000
-  ectyper: 1000
-  txsscan: 1000
+  seqsero: 100
+  ectyper: 100
+  txsscan: 100
+  coverage: 100
 

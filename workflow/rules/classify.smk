@@ -13,7 +13,6 @@ rule checkm:
         mem_mb = 100000,
         time = "1-00:00:00",
         threads = 32
-    threads: 32
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "checkm.txt")
     conda: "../envs/checkm.yaml"
@@ -32,10 +31,6 @@ rule checkm:
         export CHECKM_DATA_PATH=$CHECKM_DB_PATH
 
         echo "Using CHECKM_DATA_PATH=$CHECKM_DATA_PATH"
-
-        # Create output directories
-        mkdir -p $(dirname {output.checkm})
-        mkdir -p $(dirname {output.checkm_stats})
 
         # Run CheckM lineage workflow
         checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads} --tmpdir $(dirname {output.checkm})
@@ -60,7 +55,6 @@ rule gtdbtk:
         mem_mb = 150000,
         time = "1-00:00:00",
         threads = 32
-    threads: 32
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
     conda: "../envs/gtdb.yaml"
@@ -79,9 +73,6 @@ rule gtdbtk:
         export GTDBTK_DATA_PATH=$GTDB_PATH
 
         echo "Using GTDBTK_DATA_PATH=$GTDBTK_DATA_PATH"
-
-        # Create output directory
-        mkdir -p $(dirname {output.gtdbtk})
 
         # Run GTDB-tk classify workflow
         gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
@@ -107,9 +98,6 @@ rule fastani:
     conda: "../envs/gtdb.yaml"
     shell:
         
-        # Create output directory
-        mkdir -p $(dirname {output.pairwise_matrix})
-
         # Generate a list of input assemblies
         assembly_list=$(mktemp)
         printf "%s\\n" {input.assemblies} > $assembly_list

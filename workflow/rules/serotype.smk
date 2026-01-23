@@ -83,5 +83,3 @@ rule txsscan:
         macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $models_dir -o $(dirname {output.sys}) --force 
         
         """
-
-

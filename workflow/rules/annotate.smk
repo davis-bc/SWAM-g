@@ -20,6 +20,7 @@ rule mobsuite:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "../envs/mob_suite.yaml"
+    group: "mobsuite"
     shell:
         """
         # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags
@@ -37,11 +38,6 @@ rule mobsuite:
         done
 
         # Create empty files if no plasmid files or other outputs are generated
-        if [ ! -f {output.plas} ]; then
-            echo "No plasmid files detected. Creating marker file."
-            touch {output.plas}
-        fi
-
         if [ ! -f {output.mobtyper} ]; then
             echo "Creating empty mobtyper_results.txt."
             touch {output.mobtyper}
@@ -56,6 +52,8 @@ rule mobsuite:
             echo "Creating empty contig_report.txt."
             touch {output.c_report}
         fi
+        
+        touch {output.plas}
         """
 
 # ----------------------------------------------------------------------
@@ -94,6 +92,7 @@ rule amrfinderplus:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "../envs/amrfinder.yaml"
+    group: "amrfinderplus"
     params:
         organism = lambda wildcards: amrfinder_organism_map.get(wildcards.sample, "Escherichia")
     shell:
@@ -144,6 +143,7 @@ rule resfinder:
     params:
         species = lambda wildcards: resfinder_species_map.get(wildcards.sample, "Other")
     conda: "../envs/resfinder.yaml"
+    group: "resfinder"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
     shell:
@@ -172,6 +172,7 @@ rule mef:
         time = "0-10:00:00",
         threads = 1
     conda: "../envs/mobileelementfinder.yaml"
+    group: "mef"
     params:
         temp_dir = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}")
     benchmark:
