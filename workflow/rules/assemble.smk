@@ -1,59 +1,87 @@
 # ------------------------------------------
-#   Clean and Assemble (fastp + Unicylcer)
+#        Clean input data (fastp)
 # ------------------------------------------
 
-rule fastp_and_unicylcer:
+rule fastp:
     input:
         r1 = get_r1,
         r2 = get_r2
     output:
-        r1_clean = protected(os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz")),
-        r2_clean = protected(os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")),
-        unicycler = protected(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"))
+        r1_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
+        r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     params:
         html = "/dev/null/",
         json = "/dev/null/"
     resources:
+        threads = 1,
+        mem_mb = 10000,
+        time = "1h"
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.fastp.txt")
+    conda: "../envs/assemble.yaml"
+    shell:
+        """
+        # run fastp
+        fastp -i {input.r1} \
+              -I {input.r2} \
+              -o {output.r1_clean} \
+              -O {output.r2_clean} \
+              --html {params.html} \
+              --json {params.json}
+        
+        """
+
+# ------------------------------------------
+#         Assemble (Unicylcer)
+# ------------------------------------------
+
+rule unicylcer:
+    input:
+        r1_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
+        r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
+    output:
+        unicycler = protected(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"))
+    resources:
+        threads = 32, 
         mem_mb = 150000,
-        threads = 32,
-        time = "1-00:00:00"
-    threads: 32
+        time = "6d"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.fastp_and_unicycler.txt")
     conda: "../envs/assemble.yaml"
     shell:
         """
-        # run fastp
-        mkdir -p $(dirname {output.r1_clean})
-        fastp -i {input.r1} -I {input.r2} -o {output.r1_clean} -O {output.r2_clean} --html {params.html} --json {params.json}
-
+    
         # run unicycler, keep only pertinent files
-        mkdir -p $(dirname {output.unicycler})
-        unicycler -1 {output.r1_clean} -2 {output.r2_clean} -o $(dirname {output.unicycler}) -t {resources.threads} --keep 0
+        unicycler -1 {input.r1_clean} \
+                  -2 {input.r2_clean} \
+                  -o $(dirname {output.unicycler}) \
+                  -t {resources.threads} \
+                  --keep 0
+        
         """
 
-# ---------------------------------
-#    Calculate genomic coverage
-# ---------------------------------
+# -----------------------------------------
+#    Calculate genomic coverage (minimap2)
+# -----------------------------------------
 
-rule map_and_calculate_coverage:
+rule coverage:
     input:
         fasta = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
         r1 = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
         r2 = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     output:
-        bam = os.path.join(output_dir, "data", "bams", "{sample}.bam"),
-        coverage = os.path.join(output_dir, "data", "bams", "{sample}_coverage.tsv")
+        bam = temp(os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.bam")),
+        coverage = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}_coverage.tsv")
     resources:
-        mem_mb = 10000,
         threads = 1,
-        time = "0-01:00:00"
+        mem_mb = 10000,
+        time = "1h"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.coverage.txt")
     conda: "../envs/assemble.yaml"
-    group: "coverage"
     shell:
         r"""
+        
         # Map reads using minimap2
         minimap2 -ax sr {input.fasta} {input.r1} {input.r2} | \
         samtools view -@ {resources.threads} -bS - | \
@@ -67,9 +95,8 @@ rule map_and_calculate_coverage:
 
         # Write result as TSV: sample | coverage
         echo -e "{wildcards.sample}\t$cov" > {output.coverage}
+        
         """
-
-
-
+    
 
 

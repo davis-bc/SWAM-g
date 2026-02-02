@@ -1,42 +1,53 @@
-# ---------------------------------------------------------
-#        Check completeness and contamination (CheckM)
-# ---------------------------------------------------------
+# ------------------------------------------------
+#        Create symlink database for assemblies
+# ------------------------------------------------
 
-rule checkm:
+rule symlink:
     input:
-        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
-        checkm = os.path.join(output_dir, "data", "checkm", ".checkm_initialized")
+        assembly = expand(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"), sample=samples)
     output:
-        checkm = protected(os.path.join(output_dir, "data", "checkm", "genome.stats.tsv")),
-        checkm_stats = os.path.join(output_dir, "data", "checkm", "storage", "bin_stats.analyze.tsv")
-    resources:
-        mem_mb = 100000,
-        time = "1-00:00:00",
-        threads = 32
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "checkm.txt")
-    conda: "../envs/checkm.yaml"
+        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples)
     shell:
         """
-        # Check for the checkm_data directory in dbs/
-        CHECKM_DB_PATH=$(find dbs -type d -name 'checkm_data' -maxdepth 1)
         
-        # Ensure the checkm_data directory exists
-        if [ ! -d "$CHECKM_DB_PATH" ]; then
-            echo "Error: CHECKM_DATA_PATH (dbs/checkm_data) not found."
-            exit 1
-        fi
-
-        # Set CheckM database path environment variable
-        export CHECKM_DATA_PATH=$CHECKM_DB_PATH
-
-        echo "Using CHECKM_DATA_PATH=$CHECKM_DATA_PATH"
-
-        # Run CheckM lineage workflow
-        checkm lineage_wf $(dirname {input.assembly[0]}) $(dirname {output.checkm}) -x fasta -t {resources.threads} --tmpdir $(dirname {output.checkm})
+        # Create symbolic links for all assemblies in the batch directory
+        for i in $(seq 0 $(expr $(echo {input.assembly} | tr -s ' ' '\n' | wc -l) - 1)); do
+            input_assembly=$(echo {input.assembly} | cut -d' ' -f$(expr $i + 1))
+            output_symlink=$(echo {output.symlink} | cut -d' ' -f$(expr $i + 1))
+            ln -sf "$input_assembly" "$output_symlink"
+        done
         
-        # Generate QA report
-        checkm qa $(dirname {output.checkm})/lineage.ms $(dirname {output.checkm}) -f {output.checkm}
+        """
+
+# ---------------------------------------------------------
+#        Check completeness and contamination (CheckM2)
+# ---------------------------------------------------------
+
+rule checkm2:
+    input:
+        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples),
+        checkm =  os.path.join(output_dir, "data", "checkm2", ".checkm_initialized")
+    output:
+        checkm = os.path.join(output_dir, "data", "checkm2", "quality_report.tsv")
+    resources:
+        threads = 32,
+        mem_mb = 100000,
+        time = "1d"
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "checkm2.txt")
+    conda: "../envs/classify.yaml"
+    shell:
+        """
+        DB="dbs/CheckM2_database/uniref100.KO.1.dmnd"
+        
+        # Run CheckM2 on assemblies
+        checkm2 predict \
+        -i $(dirname {input.symlink[0]}) \
+        -o $(dirname {output.checkm}) \
+        -x fasta \
+        --threads {resources.threads} \
+        --database_path "$DB" \
+        --force
         
         """
 
@@ -47,17 +58,17 @@ rule checkm:
 
 rule gtdbtk:
     input:
-        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples),
+        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples),
         gtdb = os.path.join(output_dir, "data", "gtdb-tk", ".gtdb_initialized")
     output:
         gtdbtk = protected(os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"))
     resources:
+        threads = 32, 
         mem_mb = 150000,
-        time = "1-00:00:00",
-        threads = 32
+        time = "1d"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
-    conda: "../envs/gtdb.yaml"
+    conda: "../envs/classify.yaml"
     shell:
         """
         # Dynamically find the GTDB release directory
@@ -75,10 +86,18 @@ rule gtdbtk:
         echo "Using GTDBTK_DATA_PATH=$GTDBTK_DATA_PATH"
 
         # Run GTDB-tk classify workflow
-        gtdbtk classify_wf --genome_dir $(dirname {input.assembly[0]}) --out_dir $(dirname {output.gtdbtk}) -x fasta --cpus {resources.threads} --skip_ani_screen
+        gtdbtk classify_wf \
+        --genome_dir $(dirname {input.symlink[0]}) \
+        --out_dir $(dirname {output.gtdbtk}) \
+        -x fasta \
+        --cpus {resources.threads} \
+        --skip_ani_screen
         
         """
+
+
 """
+
 
 # ------------------------------------------------
 #    Compute pairwise ANI distance matrix (FastANI)

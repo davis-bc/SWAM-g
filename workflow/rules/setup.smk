@@ -28,27 +28,27 @@ rule gtdb_init:
         """
 
 # ----------------------------------------
-#               Setup checkM
+#               Setup checkM2
 # ---------------------------------------
 
 rule checkm_init:
     output:
-        touch(os.path.join(output_dir, "data", "checkm", ".checkm_initialized"))
+        touch(os.path.join(output_dir, "data", "checkm2", ".checkm_initialized"))
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "init_checkm.txt")
+    conda: 
+        "../envs/classify.yaml"
     shell:
         """
         DB_DIR="dbs"
-        checkm_URL="https://data.ace.uq.edu.au/public/CheckM_databases/checkm_data_2015_01_16.tar.gz"
-
-        cd $DB_DIR
+        DB="dbs/CheckM2_database/uniref100.KO.1.dmnd"
         
-        if [ ! -d checkm_data ]; then
-            echo "checkm_data not found. Downloading database..."
-            mkdir checkm_data && cd checkm_data
-            wget -q $checkm_URL 
-            tar -xvf checkm_data_2015_01_16.tar.gz > /dev/null 2>&1
-            rm checkm_data_2015_01_16.tar.gz
+        if [ ! -f "$DB" ]; then
+            echo "CheckM2_database not found. Downloading database..."
+            cd "$DB_DIR"
+            checkm2 database --download --path . > /dev/null 2>&1
+            tar -xvf checkm2_database.tar.gz
+            rm checkm2_database.tar.gz
         fi
 
         touch {output}
@@ -139,13 +139,14 @@ rule ectyper_init:
     shell:
         """
         DB_DIR="dbs"
+        URL="https://zenodo.org/records/13969103/files/EnteroRef_GTDBSketch_20231003_V2.msh"
         
         cd $DB_DIR
 
         # Check if the MASH sketch exists, download if missing
-        if [ ! -f refseq.genomes.k21s1000.msh ]; then
-            echo "RefSeq MASH sketch does not exist, initializing..."
-            wget --no-verbose https://gembox.cbcb.umd.edu/mash/refseq.genomes.k21s1000.msh
+        if [ ! -f EnteroRef_GTDBSketch_20231003_V2.msh ]; then
+            echo "EnteroRef_GTDB MASH sketch does not exist, initializing..."
+            wget --no-verbose "$URL"
         fi
 
         touch {output}

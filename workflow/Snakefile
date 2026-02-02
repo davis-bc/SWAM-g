@@ -23,7 +23,7 @@ include: "rules/serotype.smk"
 include: "rules/summarize.smk"
 
 
-localrules: mob_init, afp_init, txsscan_init, res_init, checkm_init, get_resfinder_species, get_amrfinder_organism, summarize_results
+localrules: mob_init, afp_init, txsscan_init, res_init, checkm_init, ectyper_init, symlink, get_resfinder_species, get_amrfinder_organism, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline

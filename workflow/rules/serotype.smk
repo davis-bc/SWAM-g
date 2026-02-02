@@ -4,7 +4,7 @@
 
 rule mlst:
     input:
-        assembly = expand(os.path.join(output_dir, "data", "assemblies", "chromosomes", "{sample}.chromosome.fasta"), sample=samples)
+        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples)
     output:
         mlst = os.path.join(output_dir, "data", "mlst", "mlst.tsv")
     benchmark:
@@ -13,7 +13,7 @@ rule mlst:
     shell:
         """
         
-        mlst $(dirname {input.assembly[0]})/*.fasta --quiet > {output.mlst}
+        mlst $(dirname {input.symlink[0]})/*.fasta > {output.mlst}
         
         """
 
@@ -23,7 +23,7 @@ rule mlst:
 
 rule seqsero:
     input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta")
+        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta")
     output:
         sq2 = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv")
     benchmark:
@@ -31,29 +31,14 @@ rule seqsero:
     conda: "../envs/seqsero.yaml"
     shell:
         """
+       
+        SeqSero2_package.py -m k \
+                            -t 4 \
+                            -i {input.assembly} \
+                            -d $(dirname {output.sq2}) 
         
-        SeqSero2_package.py -m k -t 4 -i {input.assembly} -d $(dirname {output.sq2}) 
-        
-        """
-
-
-# --------------------------------------------
-#   Serotype and pathotype E. coli (ECTyper)
-# --------------------------------------------
-
-rule ectyper:
-    input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
-        ecsetup = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
-    output:
-        ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "{sample}.ectyper.txt")
-    conda: "../envs/ectyper.yaml"
-    shell:
-        """
-        refseq="dbs/refseq.genomes.k21s1000.msh"
-        ectyper -i {input.assembly} -o $(dirname {output.ect}) --pathotype -r $refseq 
+        # -m 'k'(raw reads and genome assembly k-mer)
+        # -t '4' for genome assembly
         
         """
 
@@ -63,7 +48,7 @@ rule ectyper:
 
 rule txsscan:
     input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"),
+        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
         models =   os.path.join(output_dir, "data", "txsscan", ".txsscan.setup.done")
     output:
         prot = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"),
@@ -74,12 +59,54 @@ rule txsscan:
     conda: "../envs/macsyfinder.yaml"
     shell:
         """
+        
         models_dir="dbs/macsyfinder/models/"
         
         # find all proteins in assembly
         prodigal -i {input.assembly} -a {output.prot} -q 
         
         # run TXSScan on protiens
-        macsyfinder --db-type unordered --sequence-db {output.prot} --models TXSScan all --models-dir $models_dir -o $(dirname {output.sys}) --force 
+        macsyfinder --db-type unordered \
+                    --sequence-db {output.prot} \
+                    --models TXSScan all \
+                    --models-dir $models_dir \
+                    -o $(dirname {output.sys}) \
+                    --force 
         
         """
+
+
+
+# --------------------------------------------
+#   Serotype and pathotype E. coli (ECTyper)
+# --------------------------------------------
+
+rule ectyper:
+    input:
+        symlink = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
+        ecsetup = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
+    output:
+        ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.ectyper.txt")
+    resources:
+        threads = 1,
+        mem_mb = 5000,
+        time = "1d"
+    conda: "../envs/ectyper.yaml"
+    shell:
+        """
+        
+        refseq="dbs/EnteroRef_GTDBSketch_20231003_V2.msh"
+
+        # Run ectyper on the batch directory
+        ectyper -i {input.symlink} \
+                -o $(dirname {output.ect}) \
+                --pathotype \
+                -r $refseq \
+                --cores {resources.threads} \
+                --verify \
+                --debug
+        
+        """
+
