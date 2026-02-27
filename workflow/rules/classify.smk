@@ -25,29 +25,35 @@ rule symlink:
 
 rule checkm2:
     input:
-        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples),
+        symlink = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
         checkm =  os.path.join(output_dir, "data", "checkm2", ".checkm_initialized")
     output:
-        checkm = os.path.join(output_dir, "data", "checkm2", "quality_report.tsv")
+        checkm = os.path.join(output_dir, "data", "checkm2", "{sample}", "quality_report.tsv")
+    threads: 1
     resources:
-        threads = 32,
-        mem_mb = 100000,
-        time = "1d"
+        mem_mb = 2000,
+        time = "6d"
     benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "checkm2.txt")
-    conda: "../envs/classify.yaml"
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.checkm2.txt")
+    conda: "../envs/checkm2.yaml"
     shell:
         """
         DB="dbs/CheckM2_database/uniref100.KO.1.dmnd"
         
+        #tmp="$(dirname {output.checkm})/tmp"
+        #mkdir -p $tmp
+        
+        # Delay before multiprocessing.Manager attempts to create socket files
+        #sleep 5
+        
         # Run CheckM2 on assemblies
         checkm2 predict \
-        -i $(dirname {input.symlink[0]}) \
+        -i {input.symlink} \
         -o $(dirname {output.checkm}) \
         -x fasta \
-        --threads {resources.threads} \
+        --threads {threads} \
         --database_path "$DB" \
-        --force
+        --force 
         
         """
 
@@ -61,14 +67,14 @@ rule gtdbtk:
         symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples),
         gtdb = os.path.join(output_dir, "data", "gtdb-tk", ".gtdb_initialized")
     output:
-        gtdbtk = protected(os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"))
+        gtdbtk = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
+    threads: 32
     resources:
-        threads = 32, 
         mem_mb = 150000,
         time = "1d"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
-    conda: "../envs/classify.yaml"
+    conda: "../envs/gtdbtk.yaml"
     shell:
         """
         # Dynamically find the GTDB release directory
@@ -84,13 +90,13 @@ rule gtdbtk:
         export GTDBTK_DATA_PATH=$GTDB_PATH
 
         echo "Using GTDBTK_DATA_PATH=$GTDBTK_DATA_PATH"
-
+        
         # Run GTDB-tk classify workflow
         gtdbtk classify_wf \
         --genome_dir $(dirname {input.symlink[0]}) \
-        --out_dir $(dirname {output.gtdbtk}) \
+        --out_dir $(dirname $(dirname {output.gtdbtk})) \
         -x fasta \
-        --cpus {resources.threads} \
+        --cpus {threads} \
         --skip_ani_screen
         
         """

@@ -76,7 +76,7 @@ rule txsscan:
         """
 
 
-
+"""
 # --------------------------------------------
 #   Serotype and pathotype E. coli (ECTyper)
 # --------------------------------------------
@@ -89,13 +89,13 @@ rule ectyper:
         ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.ectyper.txt")
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 5000,
         time = "1d"
     conda: "../envs/ectyper.yaml"
     shell:
-        """
+        
         
         refseq="dbs/EnteroRef_GTDBSketch_20231003_V2.msh"
 
@@ -104,9 +104,10 @@ rule ectyper:
                 -o $(dirname {output.ect}) \
                 --pathotype \
                 -r $refseq \
-                --cores {resources.threads} \
+                --cores {threads} \
                 --verify \
                 --debug
         
-        """
+        
+"""        
 

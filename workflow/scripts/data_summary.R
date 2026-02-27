@@ -9,7 +9,7 @@ invisible(lapply(libraries, function(x) {
 
 # Input files
 
-checkm_file          <- snakemake@input[["checkm"]]
+checkm2_files        <- snakemake@input[["checkm"]]
 gtdbtk_file          <- snakemake@input[["gtdbtk"]]
 mlst_file            <- snakemake@input[["mlst"]]
 resfinder_files      <- snakemake@input[["resfinder_files"]]
@@ -36,8 +36,6 @@ out_file2 <- snakemake@output[[2]]
 ###      Read in pre-generated tables
 ###############################################
 
-checkm2 <- read_tsv(checkm_file, col_types = cols())
-
 gtdbtk <- read_tsv(gtdbtk_file, col_types = cols())
 gtdbtk$Sample <- gsub("\\.chromosome$", "", gtdbtk$user_genome)
 gtdbtk$Species <- sub(".*s__", "", gtdbtk$classification)
@@ -47,8 +45,22 @@ names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.fasta", "\\1", mlst$Sample)
 
 ########################################################
-###       Gather coverage data, assess assembly quality
+###       Gather checkm2 and coverage data, assess assembly quality
 ########################################################
+
+checkm2 <- do.call(rbind, lapply(seq_along(checkm2_files), function(i) {
+  if (i == 1) {
+    read.table(checkm2_files[i], header = TRUE, sep = "\t", 
+               stringsAsFactors = FALSE, row.names = NULL)
+  } else {
+    # Get column names from first file
+    col_names <- colnames(read.table(checkm2_files[1], header = TRUE, 
+                                     sep = "\t", nrows = 0))
+    read.table(checkm2_files[i], header = FALSE, sep = "\t", 
+               stringsAsFactors = FALSE, skip = 1, 
+               col.names = col_names, row.names = NULL)
+  }
+}))
 
 coverage <- do.call(rbind, lapply(coverage_files, function(f) 
   read.table(f, header = FALSE, sep = "\t", stringsAsFactors = FALSE)))

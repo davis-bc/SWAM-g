@@ -10,8 +10,8 @@ rule mobsuite:
         mobtyper = os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt"),
         blast    = os.path.join(output_dir, "data", "mob-suite", "{sample}", "biomarkers.blast.txt"),
         c_report = os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt")
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 2000,
         time = "10h"
     benchmark:
@@ -24,18 +24,27 @@ rule mobsuite:
         mob_recon --infile {input.assembly} \
         --outdir $(dirname {output.mobtyper}) \
         --unicycler_contigs \
-        -n {resources.threads} \
+        -n {threads} \
         --force
+        
+        # Create dummy files if no plasmids were detected
+        if [ ! -f {output.mobtyper} ]; then
+            echo "# No plasmids detected - writing dummy file" > {output.mobtyper}
+        fi
+        
+        if [ ! -f {output.blast} ]; then
+            echo "# No plasmids detected - writing dummy file" > {output.blast}
+        fi
         
         """
 
-# ----------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #     Generate organism mapping for AMRFinderPlus (get_amrfinder_organism)
-# ----------------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 rule get_amrfinder_organism:
     input:
-        summary = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
+        summary = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
     output:
         organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
     conda: "../envs/amrfinder.yaml"
@@ -56,8 +65,8 @@ rule amrfinderplus:
         organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "{sample}.afp.tsv")
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 1000,
         time = "10h"
     benchmark:
@@ -71,7 +80,7 @@ rule amrfinderplus:
         # annotate AMR
         amrfinder -n {input.assembly} --plus \
         --name {wildcards.sample} \
-        --threads {resources.threads} \
+        --threads {threads} \
         --organism {params.organism} \
         -o {output.afp} \
         -i 0.8 
@@ -85,7 +94,7 @@ rule amrfinderplus:
 
 rule get_resfinder_species:
     input:
-        summary = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv")
+        summary = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
     output:
         species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
     shell:
@@ -110,6 +119,7 @@ rule resfinder:
     params:
         species = lambda wildcards: resfinder_species_map.get(wildcards.sample, "Other")
     conda: "../envs/resfinder.yaml"
+    threads: 1
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
     shell:
@@ -132,6 +142,12 @@ rule resfinder:
         -db_point $db_pt \
         -db_disinf $db_dis
         
+        
+        # Create dummy file if no point-mutations were detected
+        if [ ! -f {output.pf_result} ]; then
+            echo "# No point mutations detected - writing dummy file" > {output.pf_result}
+        fi
+        
         """
 
 # ------------------------------------------------------
@@ -144,8 +160,8 @@ rule mef:
     output:
         mef        = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"),
         temp_fasta = temp(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.tmp.fasta"))
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 1000,
         time = "10h"
     conda: "../envs/mobileelementfinder.yaml"

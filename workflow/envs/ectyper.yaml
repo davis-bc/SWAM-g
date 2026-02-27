@@ -3,4 +3,4 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - ectyper>=2.0.0
+  - ectyper=2.0.0

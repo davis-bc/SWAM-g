@@ -37,7 +37,7 @@ rule checkm_init:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "init_checkm.txt")
     conda: 
-        "../envs/classify.yaml"
+        "../envs/checkm2.yaml"
     shell:
         """
         DB_DIR="dbs"

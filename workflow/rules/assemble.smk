@@ -12,8 +12,8 @@ rule fastp:
     params:
         html = "/dev/null/",
         json = "/dev/null/"
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 10000,
         time = "1h"
     benchmark:
@@ -41,12 +41,12 @@ rule unicylcer:
         r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     output:
         unicycler = protected(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"))
+    threads: 32
     resources:
-        threads = 32, 
         mem_mb = 150000,
         time = "6d"
     benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "{sample}.fastp_and_unicycler.txt")
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.unicycler.txt")
     conda: "../envs/assemble.yaml"
     shell:
         """
@@ -55,7 +55,7 @@ rule unicylcer:
         unicycler -1 {input.r1_clean} \
                   -2 {input.r2_clean} \
                   -o $(dirname {output.unicycler}) \
-                  -t {resources.threads} \
+                  -t {threads} \
                   --keep 0
         
         """
@@ -72,8 +72,8 @@ rule coverage:
     output:
         bam = temp(os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.bam")),
         coverage = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}_coverage.tsv")
+    threads: 1
     resources:
-        threads = 1,
         mem_mb = 10000,
         time = "1h"
     benchmark:
@@ -84,8 +84,8 @@ rule coverage:
         
         # Map reads using minimap2
         minimap2 -ax sr {input.fasta} {input.r1} {input.r2} | \
-        samtools view -@ {resources.threads} -bS - | \
-        samtools sort -@ {resources.threads} -o {output.bam}
+        samtools view -@ {threads} -bS - | \
+        samtools sort -@ {threads} -o {output.bam}
 
         # Index BAM for coverage calculation
         samtools index {output.bam}

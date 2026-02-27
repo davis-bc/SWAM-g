@@ -1,7 +1,0 @@
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - gtdbtk>=2.6.1
-  - checkm2>=1.1.0

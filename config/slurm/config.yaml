@@ -6,8 +6,8 @@
 
 executor: slurm
 
-jobs: 100                       # Max number of simultaneous jobs submitted to slurm
-cores: 32                       # Max number of CPUs per job/group
+jobs: 100                       # Max number of simultaneous jobs submitted to slurm (account max)
+cores: 1024                     # Max number of CPUs across all jobs (account max)
 conda-frontend: conda           # conda or mamba 
 use-conda: True                 # Enable Conda integration
 keep-incomplete: True           # Keep incomplete output to prevent re-computation
@@ -20,8 +20,7 @@ keep-incomplete: True           # Keep incomplete output to prevent re-computati
 default-resources:
   slurm_account: "nrsaamr"
   slurm_partition: "'ord'"
-  mem_mb: 2000               
-  cpus_per_task: 1            
+  mem_mb: 10000               
   runtime: "6d"
  
 # -----------------------------------------------------------
@@ -37,13 +36,16 @@ groups:
   seqsero: "seqsero"
   txsscan: "txsscan"
   coverage: "coverage"
+  checkm2: "checkm2"
 
-# -------------------------------------------------------------------------------------------
-#  Set the number of connected DAG components a group can span (batch size of each group)
-# -------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------
+#  Set the number of connected DAG components a group can span (sample batch size of each group)
+#  The mem and threads for each group is summed!!!
+#  32 samples to be run in parallel each requesting 1 thread (cpu) = 32 cpus requested in group job
+# --------------------------------------------------------------------------------------------------
 
 group-components:
-  mobsuite: 32
+  mobsuite: 32 
   amrfinderplus: 32
   resfinder: 32
   ectyper: 32
@@ -51,4 +53,5 @@ group-components:
   seqsero: 32
   txsscan: 32
   coverage: 32
+  checkm2: 32
 
