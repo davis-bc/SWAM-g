@@ -5,7 +5,7 @@
 rule summarize_results:
     input:
         checkm               = expand(os.path.join(output_dir, "data", "checkm2", "{sample}", "quality_report.tsv"), sample=samples),
-        gtdbtk               = os.path.join(output_dir, "data", "gtdb-tk", "gtdbtk.bac120.summary.tsv"),
+        gtdbtk               = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv"),
         mlst                 = os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
         #ectyper_files        = expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
         resfinder_files      = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),

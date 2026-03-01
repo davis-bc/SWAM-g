@@ -1,32 +1,4 @@
 # ----------------------------------------
-#               Setup GTDB
-# ---------------------------------------
-
-rule gtdb_init:
-    output:
-        touch(os.path.join(output_dir, "data", "gtdb-tk", ".gtdb_initialized"))
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "init_gtdb.txt")
-    shell:
-        """
-        DB_DIR="dbs"
-        GTDB_URL="https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_package/full_package/gtdbtk_data.tar.gz"
-
-        cd $DB_DIR
-
-        # Check if any 'release' directory exists; if not, download and extract the database
-        if [ ! -d "$(find . -type d -name 'release*' -maxdepth 1)" ]; then
-            echo "GTDB release directory not found. Downloading database..."
-            wget -q $GTDB_URL -O gtdbtk_data.tar.gz > /dev/null 2>&1
-            echo "Extracting database..."
-            tar -xvzf gtdbtk_data.tar.gz > /dev/null 2>&1
-            rm gtdbtk_data.tar.gz  # Clean up after extraction
-        fi
-
-        # Mark the initialization by touching the output file
-        touch {output}
-        """
-
 # ----------------------------------------
 #               Setup checkM2
 # ---------------------------------------

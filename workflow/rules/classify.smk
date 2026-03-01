@@ -1,3 +1,40 @@
+# -------------------------------------------------------
+#   Screen assembly against RefSeq MASH sketch (MASH)
+# -------------------------------------------------------
+
+rule mash_classify:
+    input:
+        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta")
+    output:
+        mash_result = os.path.join(output_dir, "data", "mash", "{sample}.mash_screen.tsv")
+    resources:
+        mem_mb = 8000,
+        time = "0-01:00:00",
+        threads = 4
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.mash_classify.txt")
+    conda: "../envs/mash.yaml"
+    shell:
+        """
+        mkdir -p $(dirname {output.mash_result})
+        mash screen -p {resources.threads} -w dbs/refseq.genomes.k21s1000.msh {input.assembly} \
+            | sort -grk1,1 > {output.mash_result}
+        """
+
+# -------------------------------------------------------
+#   Combine per-sample MASH results into taxonomy table
+# -------------------------------------------------------
+
+rule mash_taxonomy:
+    input:
+        mash_results = expand(os.path.join(output_dir, "data", "mash", "{sample}.mash_screen.tsv"), sample=samples)
+    output:
+        summary = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
+    shell:
+        """
+        python workflow/scripts/mash_to_taxonomy.py {output.summary} {input.mash_results}
+        """
+
 # ------------------------------------------------
 #        Create symlink database for assemblies
 # ------------------------------------------------
@@ -58,81 +95,3 @@ rule checkm2:
         """
 
 
-# ------------------------------------------------
-#            Classify taxonomy (GTDB-tk)
-# ------------------------------------------------
-
-rule gtdbtk:
-    input:
-        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples),
-        gtdb = os.path.join(output_dir, "data", "gtdb-tk", ".gtdb_initialized")
-    output:
-        gtdbtk = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
-    threads: 32
-    resources:
-        mem_mb = 150000,
-        time = "1d"
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "gtdbtk.txt")
-    conda: "../envs/gtdbtk.yaml"
-    shell:
-        """
-        # Dynamically find the GTDB release directory
-        GTDB_PATH=$(find dbs -type d -name 'release*' -maxdepth 1)
-        
-        # Ensure the GTDB release directory exists
-        if [ ! -d "$GTDB_PATH" ]; then
-            echo "Error: GTDB release directory not found in dbs/."
-            exit 1
-        fi
-
-        # Export GTDB data path for GTDB-tk
-        export GTDBTK_DATA_PATH=$GTDB_PATH
-
-        echo "Using GTDBTK_DATA_PATH=$GTDBTK_DATA_PATH"
-        
-        # Run GTDB-tk classify workflow
-        gtdbtk classify_wf \
-        --genome_dir $(dirname {input.symlink[0]}) \
-        --out_dir $(dirname $(dirname {output.gtdbtk})) \
-        -x fasta \
-        --cpus {threads} \
-        --skip_ani_screen
-        
-        """
-
-
-"""
-
-
-# ------------------------------------------------
-#    Compute pairwise ANI distance matrix (FastANI)
-# ------------------------------------------------
-
-rule fastani:
-    input:
-        assemblies = expand(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"), sample=samples)
-    output:
-        pairwise_matrix = os.path.join(output_dir, "pairwise_ani_matrix.tsv")
-    resources:
-        mem_mb = 80000,
-        time = "1-00:00:00",
-        threads = 32
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "fastani.txt")
-    conda: "../envs/gtdb.yaml"
-    shell:
-        
-        # Generate a list of input assemblies
-        assembly_list=$(mktemp)
-        printf "%s\\n" {input.assemblies} > $assembly_list
-
-        # Run FastANI with the --matrix flag to compute the pairwise ANI distance matrix
-        fastANI --ql $assembly_list --rl $assembly_list --matrix -o {output.pairwise_matrix} -t {resources.threads}
-
-        # Clean up temporary file
-        rm -f $assembly_list
-        
-        
-
-"""

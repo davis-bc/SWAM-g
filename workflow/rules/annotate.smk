@@ -44,9 +44,7 @@ rule mobsuite:
 
 rule get_amrfinder_organism:
     input:
-        summary = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
-    output:
-        organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
+        summary = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
     conda: "../envs/amrfinder.yaml"
     shell:
         """
@@ -94,9 +92,7 @@ rule amrfinderplus:
 
 rule get_resfinder_species:
     input:
-        summary = os.path.join(output_dir, "data", "gtdb-tk", "classify", "gtdbtk.bac120.summary.tsv")
-    output:
-        species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
+        summary = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
     shell:
         """
         

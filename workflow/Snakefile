@@ -23,7 +23,7 @@ include: "rules/serotype.smk"
 include: "rules/summarize.smk"
 
 
-localrules: mob_init, afp_init, txsscan_init, res_init, checkm_init, ectyper_init, symlink, get_resfinder_species, get_amrfinder_organism, summarize_results
+localrules: mob_init, afp_init, txsscan_init, res_init, checkm_init, ectyper_init, symlink, mash_taxonomy, get_resfinder_species, get_amrfinder_organism, summarize_results
 
 # ------------------------------------------
 #   Define the target outputs for pipeline
@@ -33,4 +33,3 @@ rule all:
     input:
         os.path.join(output_dir, "SWAM-g_results.xlsx"),
         os.path.join(output_dir, "contig_map.csv")
-        #os.path.join(output_dir, "pairwise_ani_matrix.tsv")
