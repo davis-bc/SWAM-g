@@ -3,6 +3,4 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - resfinder
-  - kma
-  - blast
+  - checkm2>=1.1.0

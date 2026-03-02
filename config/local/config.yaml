@@ -1,0 +1,37 @@
+# config/local/config.yaml
+# Local workstation profile (8 cores, 32 GB RAM)
+
+executor: local
+cores: 8
+scheduler: greedy
+use-conda: true
+conda-frontend: conda
+keep-incomplete: true
+
+# ------------------------------------------------------------------
+#  Global resource pool — Snakemake schedules jobs so the running
+#  total never exceeds these values.
+#  mem_mb = 30000 (~30 GB) leaves ~2 GB headroom for the OS.
+#  With mash_classify declared at 20000 MB below, only ONE mash
+#  screen job runs at a time, preventing the OOM seen on HPC.
+# ------------------------------------------------------------------
+resources:
+  mem_mb: 30000
+
+default-resources:
+  mem_mb: 4000
+
+# ------------------------------------------------------------------
+#  Thread overrides — unicylcer (sic) requests 32 threads by
+#  default; cap it at the number of physical cores available.
+# ------------------------------------------------------------------
+set-threads:
+  unicylcer: 8
+
+# ------------------------------------------------------------------
+#  Resource overrides — raise mash_classify memory reservation so
+#  the scheduler serialises it against the 30 GB global pool.
+# ------------------------------------------------------------------
+set-resources:
+  mash_classify:
+    mem_mb: 20000

@@ -10,7 +10,7 @@ invisible(lapply(libraries, function(x) {
 # Input files
 
 checkm2_files        <- snakemake@input[["checkm"]]
-gtdbtk_file          <- snakemake@input[["gtdbtk"]]
+mash_file            <- snakemake@input[["mash"]]
 mlst_file            <- snakemake@input[["mlst"]]
 resfinder_files      <- snakemake@input[["resfinder_files"]]
 pf_files             <- snakemake@input[["pf_files"]]
@@ -36,7 +36,7 @@ out_file2 <- snakemake@output[[2]]
 ###      Read in pre-generated tables
 ###############################################
 
-gtdbtk <- read_tsv(gtdbtk_file, col_types = cols())
+gtdbtk <- read_tsv(mash_file, col_types = cols())
 gtdbtk$Sample <- gsub("\\.chromosome$", "", gtdbtk$user_genome)
 gtdbtk$Species <- sub(".*s__", "", gtdbtk$classification)
 

@@ -3,16 +3,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python >=3.4
-  - gcc
-  - gxx_linux-64
+  - unicycler >=0.5.0
   - spades >=3.14.0
   - minimap2
   - samtools
   - fastp
   - racon
   - blast
-  - setuptools
-  - pip
-  - pip:
-      - git+https://github.com/rrwick/Unicycler.git

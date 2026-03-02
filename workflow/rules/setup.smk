@@ -17,10 +17,7 @@ rule checkm_init:
         
         if [ ! -f "$DB" ]; then
             echo "CheckM2_database not found. Downloading database..."
-            cd "$DB_DIR"
-            checkm2 database --download --path . > /dev/null 2>&1
-            tar -xvf checkm2_database.tar.gz
-            rm checkm2_database.tar.gz
+            checkm2 database --download --path "$DB_DIR" > /dev/null 2>&1
         fi
 
         touch {output}
@@ -89,8 +86,7 @@ rule res_init:
         [ ! -d "pointfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/pointfinder_db/ > /dev/null 2>&1
         [ ! -d "disinfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/disinfinder_db/ > /dev/null 2>&1
 
-        # Mark the initialization by touching the output file
-        
+        cd - > /dev/null
         touch {output}
         
         """    
@@ -118,9 +114,10 @@ rule ectyper_init:
         # Check if the MASH sketch exists, download if missing
         if [ ! -f EnteroRef_GTDBSketch_20231003_V2.msh ]; then
             echo "EnteroRef_GTDB MASH sketch does not exist, initializing..."
-            wget --no-verbose "$URL"
+            wget "$URL"
         fi
 
+        cd - > /dev/null
         touch {output}
         
         """
@@ -143,7 +140,7 @@ rule txsscan_init:
         
         if [ ! -d "$MSF_DB" ]; then
             echo "TXSScan models do not exist, initializing..."
-            msf_data install TXSScan --target $MSF_DB > /dev/null 2>&1
+            msf_data install TXSScan --target $MSF_DB
         fi
         
         touch {output}

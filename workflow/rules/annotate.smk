@@ -45,11 +45,13 @@ rule mobsuite:
 rule get_amrfinder_organism:
     input:
         summary = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
+    output:
+        organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
     conda: "../envs/amrfinder.yaml"
     shell:
         """
         
-        python workflow/scripts/get_amrfinder_organism.py {input.summary} {output.organism_map}
+        python3 workflow/scripts/get_amrfinder_organism.py {input.summary} {output.organism_map}
         
         """
 # -----------------------------------------------------
@@ -93,6 +95,8 @@ rule amrfinderplus:
 rule get_resfinder_species:
     input:
         summary = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
+    output:
+        species_map = os.path.join(output_dir, "data", "resfinder", "resfinder_species.tsv")
     shell:
         """
         
@@ -159,7 +163,8 @@ rule mef:
     threads: 1
     resources:
         mem_mb = 1000,
-        time = "10h"
+        time = "10h",
+        mef_slots = 1
     conda: "../envs/mobileelementfinder.yaml"
     params:
         temp_dir = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}")

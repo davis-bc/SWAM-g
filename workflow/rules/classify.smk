@@ -1,10 +1,11 @@
 # -------------------------------------------------------
-#   Screen assembly against RefSeq MASH sketch (MASH)
+#   Screen assembly against EnteroRef MASH sketch (MASH)
 # -------------------------------------------------------
 
 rule mash_classify:
     input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta")
+        assembly  = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
+        msh_ready = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
     output:
         mash_result = os.path.join(output_dir, "data", "mash", "{sample}.mash_screen.tsv")
     resources:
@@ -17,7 +18,7 @@ rule mash_classify:
     shell:
         """
         mkdir -p $(dirname {output.mash_result})
-        mash screen -p {resources.threads} -w dbs/refseq.genomes.k21s1000.msh {input.assembly} \
+        mash screen -p {resources.threads} -w dbs/EnteroRef_GTDBSketch_20231003_V2.msh {input.assembly} \
             | sort -grk1,1 > {output.mash_result}
         """
 
@@ -51,7 +52,7 @@ rule symlink:
         for i in $(seq 0 $(expr $(echo {input.assembly} | tr -s ' ' '\n' | wc -l) - 1)); do
             input_assembly=$(echo {input.assembly} | cut -d' ' -f$(expr $i + 1))
             output_symlink=$(echo {output.symlink} | cut -d' ' -f$(expr $i + 1))
-            ln -sf "$input_assembly" "$output_symlink"
+            ln -sf "$(readlink -f "$input_assembly")" "$output_symlink"
         done
         
         """
