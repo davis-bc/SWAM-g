@@ -7,3 +7,4 @@ bin/**
 .snakemake
 run_snakemake.sh
 summary_script_test.R
+.copilot/
