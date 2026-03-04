@@ -114,6 +114,64 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 
 ---
 
+## Outputs
+
+### Filesystem overview
+
+```
+output/
+├── SWAM-g_results.xlsx         # Primary deliverable — multi-sheet workbook (see below)
+├── contig_map.csv              # Per-contig annotation map (see below)
+└── data/
+    ├── amrfinderplus/          # Per-sample AMR, stress, and virulence hits ({sample}.afp.tsv)
+    ├── benchmarks/             # Snakemake per-rule wall-clock timing files
+    ├── checkm2/                # Per-sample assembly quality reports (quality_report.tsv)
+    ├── clean_reads/            # fastp-trimmed paired FASTQs ({sample}_R1/R2.clean.fastq.gz)
+    ├── mash/                   # Per-sample MASH screen results + aggregated taxonomy table
+    ├── mlst/                   # Multi-locus sequence typing across all samples (mlst.tsv)
+    ├── mob-suite/              # Per-sample plasmid reconstruction and typing (mobtyper_results.txt)
+    ├── mobileelementfinder/    # Per-sample mobile element annotations ({sample}.csv)
+    ├── resfinder/              # Per-sample resistance gene hits and predicted phenotypes
+    ├── serotype/
+    │   ├── E.coli/             # ECTyper serotype + pathotype output (E. coli samples only)
+    │   └── Salmonella/         # SeqSero2 antigenic profile + serotype (Salmonella samples only)
+    ├── txsscan/                # Per-sample secretion system predictions (all_systems.tsv)
+    └── unicycler/              # Assemblies (assembly.fasta), coverage TSVs, and protein FAAs
+```
+
+### `SWAM-g_results.xlsx`
+
+A multi-sheet workbook collating all tool outputs. Each sheet can be used independently for downstream analysis.
+
+| Sheet | Contents |
+|-------|----------|
+| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, predicted serotype, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
+| `AMRFinderPlus` | Full per-hit AMRFinderPlus output including AMR, stress, and virulence elements with contig ID, coordinates, and strand |
+| `assembly_QA` | CheckM2 completeness and contamination estimates plus mean read coverage; includes a `QA` pass/fail flag (N50 > 20 kb, total contigs < 500, coverage ≥ 30×) |
+| `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |
+| `salmonella_serotype` | SeqSero2 antigenic profile and predicted serotype (populated for *Salmonella* samples only; empty otherwise) |
+| `ecoli_serotype` | ECTyper serotype and pathotype predictions (populated for *E. coli* samples only; empty otherwise) |
+
+### `contig_map.csv`
+
+A flat per-row annotation table linking every detected genetic element to its genomic context. One row per gene/element hit per contig. Columns:
+
+| Column | Description |
+|--------|-------------|
+| `Sample` | Sample identifier |
+| `contig_id` | Full Unicycler contig header (includes length and depth) |
+| `circularity_status` | `complete` (circular) or `incomplete` (linear) as called by Unicycler |
+| `molecule_type` | `chromosome` or `plasmid` as assigned by MOB-recon |
+| `primary_cluster_id` | MOB-suite plasmid cluster ID (`-` for chromosomal contigs) |
+| `predicted_mobility` | MOB-suite mobility prediction for the plasmid cluster |
+| `predicted_host_range_overall_name` | Predicted host range taxon from MOB-suite |
+| `gene` | Gene or element name from AMRFinderPlus, MobileElementFinder, or TXSScan |
+| `type` | Element category (e.g. `AMR`, `VIRULENCE`, `T4SS`, `miniature inverted repeat`) |
+| `start` / `end` | Genomic coordinates on the contig (bp) |
+| `strand` | `positive` or `negative` |
+
+---
+
 ## Software Versions
 
 Key tools are pinned to specific versions in the conda environment files (`workflow/envs/*.yaml`) to ensure reproducibility. Tools installed via `pip` or marked with `>=` use the latest compatible release at environment creation time.
