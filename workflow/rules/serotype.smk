@@ -76,7 +76,6 @@ rule txsscan:
         """
 
 
-"""
 # --------------------------------------------
 #   Serotype and pathotype E. coli (ECTyper)
 # --------------------------------------------
@@ -95,19 +94,20 @@ rule ectyper:
         time = "1d"
     conda: "../envs/ectyper.yaml"
     shell:
-        
-        
+        """
         refseq="dbs/EnteroRef_GTDBSketch_20231003_V2.msh"
 
-        # Run ectyper on the batch directory
+        # Copy sketch to local node scratch to avoid I/O contention on the shared
+        # filesystem when many ECTyper jobs run simultaneously in a group job.
+        LOCAL_MSH="${{TMPDIR:-/tmp}}/EnteroRef_GTDBSketch_20231003_V2.msh"
+        cp "$refseq" "$LOCAL_MSH"
+
         ectyper -i {input.symlink} \
                 -o $(dirname {output.ect}) \
                 --pathotype \
-                -r $refseq \
+                -r "$LOCAL_MSH" \
                 --cores {threads} \
                 --verify \
                 --debug
-        
-        
-"""        
+        """        
 
