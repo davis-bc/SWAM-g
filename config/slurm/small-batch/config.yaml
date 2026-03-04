@@ -1,0 +1,108 @@
+# config/slurm/small-batch/config.yaml
+#
+# Use this profile for runs with <50 samples.
+# Each sample-parallel rule runs as its own individual Slurm job.
+# Resources are sized for a single sample with comfortable headroom.
+#
+# Usage: snakemake --profile config/slurm/small-batch ...
+
+# ----------------------------
+#  Global Slurm limits
+# ----------------------------
+
+executor: slurm
+
+jobs: 100                    # Max simultaneous jobs submitted to Slurm
+cores: 1024                  # Max total CPUs across all jobs
+
+conda-frontend: conda
+use-conda: true
+keep-incomplete: true        # Preserve partial output to avoid re-computation
+
+# ----------------------------------------------------
+#  Default resources (applied when not set explicitly)
+# ----------------------------------------------------
+
+default-resources:
+  slurm_account: "nrsaamr"
+  slurm_partition: "'ord'"
+  mem_mb: 4000
+  runtime: "6-00:00:00"
+
+# No groups defined — each sample is submitted as an individual Slurm job.
+
+# -----------------------------------------------------------
+#  Per-rule thread allocation
+# -----------------------------------------------------------
+
+set-threads:
+  fastp: 1
+  unicylcer: 32
+  coverage: 1
+  mash_classify: 4
+  mobsuite: 1
+  amrfinderplus: 1
+  resfinder: 1
+  mef: 1
+  checkm2: 1
+  txsscan: 1
+  ectyper: 1
+  seqsero: 1
+  mlst: 1
+
+# -----------------------------------------------------------
+#  Per-rule resource allocation
+#  Each value is the allocation for a single-sample job.
+# -----------------------------------------------------------
+
+set-resources:
+  # --- Assembly ---
+  fastp:
+    mem_mb: 10000
+    runtime: "0-01:00:00"
+  unicylcer:
+    mem_mb: 150000
+    runtime: "6-00:00:00"
+  coverage:
+    mem_mb: 8000
+    runtime: "0-01:00:00"
+
+  # --- Taxonomy ---
+  mash_classify:
+    mem_mb: 20000
+    runtime: "0-01:00:00"
+
+  # --- Annotation ---
+  mobsuite:
+    mem_mb: 8000
+    runtime: "0-10:00:00"
+  amrfinderplus:
+    mem_mb: 4000
+    runtime: "0-10:00:00"
+  resfinder:
+    mem_mb: 8000
+    runtime: "0-10:00:00"
+  mef:
+    mem_mb: 4000
+    runtime: "0-10:00:00"
+
+  # --- QC ---
+  checkm2:
+    mem_mb: 8000
+    runtime: "0-12:00:00"
+
+  # --- Serotyping ---
+  txsscan:
+    mem_mb: 4000
+    runtime: "0-10:00:00"
+  ectyper:
+    mem_mb: 8000
+    runtime: "0-10:00:00"
+  seqsero:
+    mem_mb: 4000
+    runtime: "0-02:00:00"
+
+  # --- Aggregate ---
+  mlst:
+    mem_mb: 8000
+    runtime: "0-02:00:00"

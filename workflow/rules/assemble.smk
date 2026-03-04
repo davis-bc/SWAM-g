@@ -12,10 +12,6 @@ rule fastp:
     params:
         html = "/dev/null/",
         json = "/dev/null/"
-    threads: 1
-    resources:
-        mem_mb = 10000,
-        time = "1h"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.fastp.txt")
     conda: "../envs/assemble.yaml"
@@ -41,10 +37,6 @@ rule unicylcer:
         r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     output:
         unicycler = protected(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"))
-    threads: 32
-    resources:
-        mem_mb = 150000,
-        time = "6d"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.unicycler.txt")
     conda: "../envs/assemble.yaml"
@@ -72,10 +64,6 @@ rule coverage:
     output:
         bam = temp(os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.bam")),
         coverage = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}_coverage.tsv")
-    threads: 1
-    resources:
-        mem_mb = 10000,
-        time = "1h"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.coverage.txt")
     conda: "../envs/assemble.yaml"

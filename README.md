@@ -34,39 +34,33 @@ cd /pathto/workspace
 git clone https://github.com/davis-bc/SWAM-g
 ```
 ### Step 2. Configure slurm profile and rule resources
-`SWAM-g` was constructed and tested on an HPC cluster managed by a Slurm scheduler.
-To take advantage of Slurm job management, edit [config/slurm/config.yaml](https://github.com/davis-bc/SWAM-g/blob/main/config/slurm/config.yaml) for your HPC environment.
+`SWAM-g` was constructed and tested on an HPC cluster managed by a Slurm scheduler. Two Slurm profiles are provided — choose based on the number of samples in your run:
 
-Replace the `slurm_account` and `slurm_partition` values with your credentials. The profile uses Snakemake's native Slurm executor plugin (`snakemake-executor-plugin-slurm`):
+| Profile | Recommended for | Behavior |
+|---------|----------------|----------|
+| `config/slurm/large-batch` | **≥50 samples** | Annotation rules are batched 32 samples per Slurm job; Slurm receives the summed resources across all samples in a batch |
+| `config/slurm/small-batch` | **<50 samples** | Each sample runs as its own individual Slurm job with per-job memory headroom |
+
+Edit the `slurm_account` and `slurm_partition` fields in **both** profile configs to match your HPC environment. All resource allocation (`mem_mb`, `runtime`, `threads`) is controlled exclusively in the profile YAML — no edits to rule files are needed.
 
 ```yaml
-executor: slurm
-
-jobs: 100                      # Max simultaneous jobs submitted to Slurm
-cores: 1024                    # Max total CPUs across all jobs
-
-conda-frontend: conda
-use-conda: true
-keep-incomplete: true
-
 default-resources:
   slurm_account: "your_account"
   slurm_partition: "your_partition"
-  mem_mb: 10000
-  runtime: "6d"
 ```
 
 More information on Snakemake configurations for different compute environments can be found in the [Snakemake docs](https://snakemake.readthedocs.io/en/stable/).
 
-### Step 3. Tune rules
-Resources have been pre-tuned to each [rule](https://github.com/davis-bc/SWAM-g/tree/main/workflow/rules) but can be manually adjusted within each module.smk.
+### Step 3. Tune resources (optional)
+All per-rule resource allocations are defined in the profile config under `set-resources` and `set-threads`. Edit the appropriate profile file to adjust memory or runtime for any rule — no changes to `.smk` files are needed.
 
-For example, the resources for rule "fastp_and_unicylcer" within [assemble.smk](https://github.com/davis-bc/SWAM-g/blob/main/workflow/rules/assemble.smk) may require increased RAM to accommodate larger assemblies. 
-```
-resources:
-        mem_mb = 20000,
-        threads = 16,
-        time = "0-10:00:00"
+For example, to give `unicylcer` more RAM in the large-batch profile:
+```yaml
+# config/slurm/large-batch/config.yaml
+set-resources:
+  unicylcer:
+    mem_mb: 200000
+    runtime: "6-00:00:00"
 ```
 
 ### Step 4. Download test data, run the pipeline on HPC
@@ -79,9 +73,7 @@ fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 `SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
-The following is an example `run_swam-g.sh` driver script for executing `SWAM-g` via Slurm.
-
-The `-j` flag sets the maximum number of concurrent Slurm jobs (samples in flight at once).
+The following is an example `run_swam-g.sh` driver script for executing `SWAM-g` via Slurm. Choose `large-batch` or `small-batch` based on the number of samples (see Step 2).
 
 Replace "/pathto/" placeholders with appropriate paths.
 
@@ -100,12 +92,9 @@ cd /pathto/SWAM-g
 input="/pathto/directory/input"
 output="/pathto/directory/output"
 
-snakemake --profile config/slurm/ \
+# Use large-batch for ≥50 samples, small-batch for <50 samples
+snakemake --profile config/slurm/large-batch \
           --config in_dir="$input" out_dir="$output" \
-          --use-conda \
-          --conda-frontend conda \
-          -j 10 \
-          --local-cores 1 \
           --quiet
 
 ```

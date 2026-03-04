@@ -8,17 +8,13 @@ rule mash_classify:
         msh_ready = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
     output:
         mash_result = os.path.join(output_dir, "data", "mash", "{sample}.mash_screen.tsv")
-    resources:
-        mem_mb = 8000,
-        time = "0-01:00:00",
-        threads = 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mash_classify.txt")
     conda: "../envs/mash.yaml"
     shell:
         """
         mkdir -p $(dirname {output.mash_result})
-        mash screen -p {resources.threads} -w dbs/EnteroRef_GTDBSketch_20231003_V2.msh {input.assembly} \
+        mash screen -p {threads} -w dbs/EnteroRef_GTDBSketch_20231003_V2.msh {input.assembly} \
             | sort -grk1,1 > {output.mash_result}
         """
 
@@ -67,10 +63,6 @@ rule checkm2:
         checkm =  os.path.join(output_dir, "data", "checkm2", ".checkm_initialized")
     output:
         checkm = os.path.join(output_dir, "data", "checkm2", "{sample}", "quality_report.tsv")
-    threads: 1
-    resources:
-        mem_mb = 2000,
-        time = "6d"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.checkm2.txt")
     conda: "../envs/checkm2.yaml"

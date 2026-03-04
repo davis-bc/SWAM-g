@@ -10,10 +10,6 @@ rule mobsuite:
         mobtyper = os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt"),
         blast    = os.path.join(output_dir, "data", "mob-suite", "{sample}", "biomarkers.blast.txt"),
         c_report = os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt")
-    threads: 1
-    resources:
-        mem_mb = 2000,
-        time = "10h"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "../envs/mob_suite.yaml"
@@ -65,10 +61,6 @@ rule amrfinderplus:
         organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "{sample}.afp.tsv")
-    threads: 1
-    resources:
-        mem_mb = 1000,
-        time = "10h"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "../envs/amrfinder.yaml"
@@ -119,7 +111,6 @@ rule resfinder:
     params:
         species = lambda wildcards: resfinder_species_map.get(wildcards.sample, "Other")
     conda: "../envs/resfinder.yaml"
-    threads: 1
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
     shell:
@@ -160,10 +151,7 @@ rule mef:
     output:
         mef        = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"),
         temp_fasta = temp(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.tmp.fasta"))
-    threads: 1
     resources:
-        mem_mb = 1000,
-        time = "10h",
         mef_slots = 1
     conda: "../envs/mobileelementfinder.yaml"
     params:
