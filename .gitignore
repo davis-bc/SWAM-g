@@ -8,3 +8,4 @@ bin/**
 run_snakemake.sh
 summary_script_test.R
 .copilot/
+.github/copilot-instructions.md
