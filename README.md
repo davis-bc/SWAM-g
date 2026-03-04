@@ -6,9 +6,13 @@ This pipeline is designed to process Illumina paired-end whole-genome sequencing
 
 
 ## Setup and Configuration
-**Note:** The pipeline is currently designed for Linux systems. macOS users can attempt adaptation but might face Snakemake system-specific dependencies. Windows is not officially supported. If you encounter issues, refer to the [Snakemake issues page](https://github.com/snakemake/snakemake/issues).
 
-The peak memory requirement is approximately **20 GB** for MASH taxonomy classification; all other rules use substantially less.
+**Platform support:**
+- **Linux:** fully tested and recommended.
+- **macOS:** supported via conda; Apple Silicon (M-series) users may need [Rosetta 2](https://support.apple.com/en-us/102527) for some tools.
+- **Windows:** use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) with Ubuntu — install conda inside WSL and follow the Linux instructions below.
+
+> **Databases:** All reference databases required by each tool (AMRFinderPlus, MOB-suite, CheckM2, ResFinder, TXSScan, and ECTyper) are downloaded and configured automatically on the first run. No manual database setup is required.
 
 ### Step 0. Install conda/mamba manager, Snakemake, and SRA-tools
 `SWAM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
@@ -63,8 +67,8 @@ set-resources:
     runtime: "6-00:00:00"
 ```
 
-### Step 4. Download test data, run the pipeline on HPC
-To test the pipeline, first download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
+### Step 4. Download test data
+To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
 
 ```bash
 mkdir -p /pathto/directory/input
@@ -73,6 +77,7 @@ fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 `SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
+### Step 5. Run the pipeline on HPC
 The following is an example `run_swam-g.sh` driver script for executing `SWAM-g` via Slurm. Choose `large-batch` or `small-batch` based on the number of samples (see Step 2).
 
 Replace "/pathto/" placeholders with appropriate paths.
@@ -103,14 +108,18 @@ Then submit as:
 sbatch run_swam-g.sh
 ```
 
-### Step 5. Running on a local workstation
-For running without Slurm (e.g., a laptop or single server), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile which caps CPU usage at 8 cores and RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically.
+### Step 6. Running on a local workstation
+For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically.
 
 ```bash
 bash run_swam-g_local.sh /path/to/input /path/to/output
 ```
 
 If no arguments are provided, it defaults to `./input` and `./output` relative to the repository root.
+
+**macOS:** Run as above — conda handles all dependencies natively.
+
+**Windows (WSL2):** Open a WSL2 Ubuntu terminal, navigate to the cloned repository, and run the same command. Ensure conda is installed inside WSL (not the Windows host) before proceeding.
 
 ---
 
