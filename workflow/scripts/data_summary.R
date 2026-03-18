@@ -128,7 +128,7 @@ ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate
 ###############################################
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+  x <- tryCatch(read_tsv(f, col_types = cols(`associated_pmid(s)` = col_character())), error=function(e) NULL)
   if (is.null(x)) return(NULL)
   x
 })) %>% 
