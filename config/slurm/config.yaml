@@ -28,7 +28,7 @@ default-resources:
   slurm_account: "nrsaamr"
   slurm_partition: "'ord'"
   mem_mb: 10000               
-  runtime: "6d"
+  runtime: 8640
  
 # -----------------------------------------------------------
 #  Assign rules: "groups" (run samples in batches)
@@ -88,40 +88,40 @@ set-threads:
 set-resources:
   fastp:
     mem_mb: 10000
-    runtime: "0-01:00:00"
+    runtime: 60
   unicylcer:
     mem_mb: 150000
-    runtime: "6-00:00:00"
+    runtime: 8640
   coverage:
     mem_mb: 4000
-    runtime: "0-01:00:00"
+    runtime: 60
   mash_classify:
     mem_mb: 20000
-    runtime: "0-01:00:00"
+    runtime: 60
   mobsuite:
     mem_mb: 2000
-    runtime: "0-10:00:00"
+    runtime: 600
   amrfinderplus:
     mem_mb: 2000
-    runtime: "0-10:00:00"
+    runtime: 600
   resfinder:
     mem_mb: 4000
-    runtime: "0-10:00:00"
+    runtime: 600
   mef:
     mem_mb: 2000
-    runtime: "0-10:00:00"
+    runtime: 600
   checkm2:
     mem_mb: 4000
-    runtime: "0-12:00:00"
+    runtime: 720
   txsscan:
     mem_mb: 2000
-    runtime: "0-10:00:00"
+    runtime: 600
   ectyper:
     mem_mb: 5000
-    runtime: "0-10:00:00"
+    runtime: 600
   seqsero:
     mem_mb: 2000
-    runtime: "0-02:00:00"
+    runtime: 120
   mlst:
     mem_mb: 4000
-    runtime: "0-02:00:00"
+    runtime: 120
