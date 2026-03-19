@@ -48,19 +48,12 @@ mlst$Sample <- sub(".*/(.*)\\.fasta", "\\1", mlst$Sample)
 ###       Gather checkm2 and coverage data, assess assembly quality
 ########################################################
 
-checkm2 <- do.call(rbind, lapply(seq_along(checkm2_files), function(i) {
-  if (i == 1) {
-    read.table(checkm2_files[i], header = TRUE, sep = "\t", 
-               stringsAsFactors = FALSE, row.names = NULL)
-  } else {
-    # Get column names from first file
-    col_names <- colnames(read.table(checkm2_files[1], header = TRUE, 
-                                     sep = "\t", nrows = 0))
-    read.table(checkm2_files[i], header = FALSE, sep = "\t", 
-               stringsAsFactors = FALSE, skip = 1, 
-               col.names = col_names, row.names = NULL)
-  }
-}))
+checkm2 <- do.call(bind_rows, lapply(checkm2_files, function(f) {
+  tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error = function(e) NULL)
+})) %>%
+  mutate(across(c(Completeness, Contamination, Coding_Density, Contig_N50, Average_Gene_Length,
+                  Genome_Size, GC_Content, Total_Coding_Sequences, Total_Contigs,
+                  Max_Contig_Length, Translation_Table_Used), as.numeric))
 
 coverage <- do.call(rbind, lapply(coverage_files, function(f) 
   read.table(f, header = FALSE, sep = "\t", stringsAsFactors = FALSE)))
@@ -87,8 +80,13 @@ amrfinderplus <- do.call(bind_rows, lapply(afp_files, function(f) {
   x
 }))
 
-afp_genotype <- amrfinderplus %>% filter(Type == "AMR") %>% group_by(Sample) %>%
-                summarise(AMRFinder_Genotype = paste(sort(unique(`Element symbol`)), collapse = ", "))
+if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
+  afp_genotype <- amrfinderplus %>% filter(Type == "AMR") %>% group_by(Sample) %>%
+                  summarise(AMRFinder_Genotype = paste(sort(unique(`Element symbol`)), collapse = ", "))
+} else {
+  amrfinderplus <- tibble()
+  afp_genotype  <- tibble(Sample = character(), AMRFinder_Genotype = character())
+}
 
 
 ###############################################
@@ -100,15 +98,22 @@ seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
     read_tsv(f, col_types = cols(.default = col_character())),
     error=function(e) NULL
   )
-  if (is.null(x)) return(NULL)
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x
 }))
-  
-seqsero$Sample <- basename(seqsero$`Output directory`)
-names(seqsero)[8:9] <- c("Predicted_Antigenic_Profile", "Predicted_Serotype")
+
+if (!is.null(seqsero) && ncol(seqsero) > 0) {
+  seqsero <- seqsero %>%
+    mutate(Sample = basename(`Output directory`)) %>%
+    rename(Predicted_Antigenic_Profile = `Predicted antigenic profile`,
+           Predicted_Serotype          = `Predicted serotype`)
+} else {
+  seqsero <- tibble(Sample = character(), `Predicted identification` = character(),
+                    Predicted_Antigenic_Profile = character(), Predicted_Serotype = character())
+}
 
 seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identification`)) %>%
-  relocate(Sample) %>% select(-c(`Sample name`, `Output directory`))
+  relocate(Sample) %>% select(-any_of(c("Sample name", "Output directory")))
   
   
 ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
@@ -116,12 +121,16 @@ ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
     read_tsv(f, col_types = cols(.default = col_character())),
     error=function(e) NULL
   )
-  if (is.null(x)) return(NULL)
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(f))
   x
 }))
-  
-ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
+
+ectyper_simple <- if (!is.null(ectyper) && ncol(ectyper) > 0) {
+  ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
+} else {
+  tibble()
+}
 
 ###############################################
 ###       Gather MOB-suite plasmid data
@@ -129,28 +138,40 @@ ectyper_simple <- ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate
 
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`associated_pmid(s)` = col_character())), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x
-})) %>% 
-    separate(sample_id, into=c("Sample", "primary_cluster_id"), sep = ":") %>%
-    mutate(PlasmidID = paste0(Sample, ".plasmid_", primary_cluster_id)) %>%
-    relocate(Sample, PlasmidID) 
+}))
 
-mobtyper_summary <- mobtyper %>% 
-                    group_by(Sample) %>% 
-                    summarise(n_Plasmid_Clusters = length(primary_cluster_id), 
-                                Plasmid_Rep_Types = paste(`rep_type(s)`, collapse = " | "), 
-                                Plasmid_Relaxase_Types = paste(`relaxase_type(s)`, collapse = " | "))
+if (!is.null(mobtyper) && ncol(mobtyper) > 0) {
+  mobtyper <- mobtyper %>%
+    rename(rep_type        = `rep_type(s)`,
+           relaxase_type   = `relaxase_type(s)`,
+           orit_type       = `orit_type(s)`,
+           associated_pmid = `associated_pmid(s)`) %>%
+    separate(sample_id, into = c("Sample", "primary_cluster_id"), sep = ":", extra = "drop") %>%
+    mutate(PlasmidID = paste0(Sample, ".plasmid_", primary_cluster_id)) %>%
+    relocate(Sample, PlasmidID)
+
+  mobtyper_summary <- mobtyper %>%
+                      group_by(Sample) %>%
+                      summarise(n_Plasmid_Clusters      = length(primary_cluster_id),
+                                Plasmid_Rep_Types        = paste(rep_type,      collapse = " | "),
+                                Plasmid_Relaxase_Types   = paste(relaxase_type, collapse = " | "))
+} else {
+  mobtyper         <- tibble()
+  mobtyper_summary <- tibble(Sample = character(), n_Plasmid_Clusters = integer(),
+                             Plasmid_Rep_Types = character(), Plasmid_Relaxase_Types = character())
+}
 
 
 
 mobtyper_blast <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(f))
   x
 })) %>% 
-      separate(qseqid, into = c("accession", "gene"), sep="\\|") %>%
+      separate(qseqid, into = c("accession", "gene"), sep="\\|", extra = "drop") %>%
       mutate(contig.num = str_split_i(sseqid, " ", 1), sstrand=ifelse(sstrand=="minus", "negative", "positive")) %>%
       select(Sample, contig.num, gene, biomarker, sstart, send, sstrand) %>%
       rename(type=biomarker, start=sstart, end=send, strand=sstrand)
@@ -196,7 +217,7 @@ pf <- do.call(
   bind_rows,
   lapply(pf_files, function(f) {
     x <- tryCatch(read_tsv(f, col_types = cols()), error = function(e) NULL)
-    if (is.null(x)) return(NULL)
+    if (is.null(x) || nrow(x) == 0) return(NULL)
     x$Sample <- basename(dirname(f))
     # Coerce `PMID` (or other problematic columns) to character for consistency
     if ("PMID" %in% colnames(x)) {
@@ -204,9 +225,15 @@ pf <- do.call(
     }
     x
   })
-) %>%
-group_by(Sample) %>%
-summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
+)
+
+if (!is.null(pf) && ncol(pf) > 0) {
+  pf <- pf %>%
+    group_by(Sample) %>%
+    summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
+} else {
+  pf <- tibble(Sample = character(), Pointfinder_Mutation = character())
+}
 
 
 # df_files <- list.files("resfinder", pattern = "DisinFinder_results_tab.txt", recursive = 1, full.names = T)
@@ -274,7 +301,7 @@ process_txsscan_and_prodigal_files <- function(txsscan_files, prodigal_files) {
   txsscan_combined <- txsscan_files %>% 
     lapply(parse_all_systems_file) %>% 
     bind_rows() %>% 
-    separate(hit_id, into = c("contig.num", "orf.num"), sep="_", remove = FALSE) %>%  # Retain hit_id column
+    separate(hit_id, into = c("contig.num", "orf.num"), sep="_", extra = "drop", remove = FALSE) %>%  # Retain hit_id column
     mutate(sys_id2 = sub(".*\\.prot_", "", sys_id)) %>%
     select(Sample, hit_id, contig.num, orf.num, gene_name, sys_id2, hit_begin_match, hit_end_match) %>% 
     mutate(across(c(hit_begin_match, hit_end_match), as.integer)) %>%  # Ensure positions are numeric
@@ -328,6 +355,11 @@ process_file <- function(file_path) {
   sequence_db_line <- lines[grep("--sequence-db", lines)]
   sample_name <- str_match(sequence_db_line, ".*unicycler/(.+?)/.*\\.faa")[, 2]
   
+  if (is.na(sample_name)) {
+    warning(sprintf("Could not parse sample name from '%s'; skipping.", file_path))
+    return(NULL)
+  }
+  
   # Extract systems where wholeness > 0.50
   model_lines <- grep("^model = ", lines, value = TRUE)
   wholeness_lines <- grep("^wholeness = ", lines, value = TRUE)
@@ -352,7 +384,7 @@ process_file <- function(file_path) {
 
 # Process all_systems.txt files in a list
 process_all_files <- function(file_list) {
-  bind_rows(map(file_list, process_file))
+  bind_rows(Filter(Negate(is.null), map(file_list, process_file)))
 }
 
 
@@ -363,12 +395,16 @@ txsscan_mod <- process_all_files(txsscan_files2)
 ###        MobileElementFinder Data
 #################################################
 
-mef <- do.call(rbind, lapply(mef_files, function(path) {
-  x <- read.csv(path, stringsAsFactors = FALSE, skip = 5, header = T)
+mef <- do.call(bind_rows, lapply(mef_files, function(path) {
+  x <- tryCatch(
+    read_csv(path, skip = 5, col_types = cols(.default = col_character()), show_col_types = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(path))
   x
-})) %>% 
-    mutate(contig.num = str_split_i(contig, " ", 1)) %>%
+})) %>%
+    mutate(contig.num = contig, start = as.integer(start), end = as.integer(end)) %>%
     select(Sample, contig.num, name, type, start, end) %>%
     rename(gene=name) %>%
     mutate(strand="positive") %>% 
@@ -389,19 +425,28 @@ contigs <- do.call(bind_rows, lapply(contig_files, function(f) {
   x
 })) %>% 
   mutate(contig.num = str_split_i(contig_id, " ", 1)) %>% 
-  select(Sample, contig_id, circularity_status, molecule_type, primary_cluster_id, contig.num) %>%
-  left_join(mobtyper %>% select(Sample, primary_cluster_id, predicted_mobility, predicted_host_range_overall_name), by=c("Sample", "primary_cluster_id"))
+  select(Sample, contig_id, circularity_status, molecule_type, primary_cluster_id, contig.num)
 
-amrfinderplus_merge <- amrfinderplus %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand) %>%
-  rename(contig.num=`Contig id`,
-        gene=`Element symbol`,
-        start=Start,
-        end=Stop,
-        strand=Strand,
-        type=Type) %>%
-  mutate(strand=ifelse(strand=="+", "positive", "negative"))
+if (ncol(mobtyper) > 0) {
+  contigs <- contigs %>%
+    left_join(mobtyper %>% select(Sample, primary_cluster_id, predicted_mobility, predicted_host_range_overall_name),
+              by = c("Sample", "primary_cluster_id"))
+}
 
-amr_mge_total <- rbind(amrfinderplus_merge, mef, txsscan, mobtyper_blast)
+if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
+  amrfinderplus_merge <- amrfinderplus %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand) %>%
+    rename(contig.num=`Contig id`,
+          gene=`Element symbol`,
+          start=Start,
+          end=Stop,
+          strand=Strand,
+          type=Type) %>%
+    mutate(strand=ifelse(strand=="+", "positive", "negative"))
+} else {
+  amrfinderplus_merge <- tibble()
+}
+
+amr_mge_total <- bind_rows(amrfinderplus_merge, mef, txsscan, mobtyper_blast)
 
 contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num")) %>% select(-contig.num)        
 
