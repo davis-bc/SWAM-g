@@ -10,8 +10,11 @@ import csv
 # ----------------------------------------------
 
 # Load config variables
-input_dir = config["in_dir"]
+input_dir  = config["in_dir"]
 output_dir = config["out_dir"]
+
+_debug_raw = config.get("debug", False)
+debug_mode = _debug_raw if isinstance(_debug_raw, bool) else str(_debug_raw).lower() in ("true", "1", "yes")
 
 # Helper: extract sample name from fastq filename
 def extract_sample_name(filename):

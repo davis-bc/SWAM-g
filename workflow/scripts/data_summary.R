@@ -31,23 +31,43 @@ prodigal_files       <- snakemake@input[["prodigal_files"]]
 out_file1 <- snakemake@output[[1]]
 out_file2 <- snakemake@output[[2]]
 
+# Debug mode
+debug_mode <- isTRUE(snakemake@params[["debug"]]) ||
+              identical(snakemake@params[["debug"]], "true") ||
+              identical(snakemake@params[["debug"]], "True")
+
+if (debug_mode) {
+  options(warn = 1)   # Print warnings immediately as they occur
+  message("[DEBUG] data_summary.R: debug mode enabled")
+  message("[DEBUG] Samples: ", length(checkm2_files))
+}
+
+dlog <- function(...) {
+  if (debug_mode) message("[DEBUG] ", ...)
+}
+
 
 ###############################################
 ###      Read in pre-generated tables
 ###############################################
 
+dlog("START: MASH taxonomy")
 gtdbtk <- read_tsv(mash_file, col_types = cols())
 gtdbtk$Sample <- gsub("\\.chromosome$", "", gtdbtk$user_genome)
 gtdbtk$Species <- sub(".*s__", "", gtdbtk$classification)
+dlog("DONE:  MASH taxonomy (", nrow(gtdbtk), " rows)")
 
+dlog("START: MLST")
 mlst <- read_table(mlst_file, col_names = F, col_types = cols())
 names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.fasta", "\\1", mlst$Sample)
+dlog("DONE:  MLST (", nrow(mlst), " rows)")
 
 ########################################################
 ###       Gather checkm2 and coverage data, assess assembly quality
 ########################################################
 
+dlog("START: CheckM2 + coverage")
 checkm2 <- do.call(bind_rows, lapply(checkm2_files, function(f) {
   tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error = function(e) NULL)
 })) %>%
@@ -64,6 +84,7 @@ assembly_stats <- checkm2 %>%
                    rename(Sample=Name) %>% 
                    left_join(coverage, by="Sample") %>%
                    mutate(QA = ifelse(Contig_N50 > 20000 & Total_Contigs < 500 & XCoverage >= 30, "pass", "fail"))
+dlog("DONE:  CheckM2 + coverage (", nrow(assembly_stats), " samples)")
 
 
 
@@ -71,8 +92,7 @@ assembly_stats <- checkm2 %>%
 ###   Gather AMRFinderPlus results
 ###############################################
 
-expected_types <- c("AMR", "STRESS", "VIRULENCE")
-
+dlog("START: AMRFinderPlus")
 amrfinderplus <- do.call(bind_rows, lapply(afp_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`Contig id` = "c")), error = function(e) NULL)
   if (is.null(x) || nrow(x) == 0) {return(NULL)}
@@ -83,9 +103,11 @@ amrfinderplus <- do.call(bind_rows, lapply(afp_files, function(f) {
 if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
   afp_genotype <- amrfinderplus %>% filter(Type == "AMR") %>% group_by(Sample) %>%
                   summarise(AMRFinder_Genotype = paste(sort(unique(`Element symbol`)), collapse = ", "))
+  dlog("DONE:  AMRFinderPlus (", nrow(amrfinderplus), " hits across ", n_distinct(amrfinderplus$Sample), " samples)")
 } else {
   amrfinderplus <- tibble()
   afp_genotype  <- tibble(Sample = character(), AMRFinder_Genotype = character())
+  dlog("DONE:  AMRFinderPlus (no hits in any sample)")
 }
 
 
@@ -93,6 +115,7 @@ if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
 ###   Gather all Serotyping results
 ###############################################
 
+dlog("START: SeqSero2 (Salmonella serotyping)")
 seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
   x <- tryCatch(
     read_tsv(f, col_types = cols(.default = col_character())),
@@ -114,8 +137,9 @@ if (!is.null(seqsero) && ncol(seqsero) > 0) {
 
 seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identification`)) %>%
   relocate(Sample) %>% select(-any_of(c("Sample name", "Output directory")))
-  
-  
+dlog("DONE:  SeqSero2 (", nrow(seqsero_simple), " Salmonella samples)")
+
+dlog("START: ECTyper (E. coli serotyping)")
 ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
   x <- tryCatch(
     read_tsv(f, col_types = cols(.default = col_character())),
@@ -131,11 +155,13 @@ ectyper_simple <- if (!is.null(ectyper) && ncol(ectyper) > 0) {
 } else {
   tibble()
 }
+dlog("DONE:  ECTyper (", nrow(ectyper_simple), " E. coli samples)")
 
 ###############################################
 ###       Gather MOB-suite plasmid data
 ###############################################
 
+dlog("START: MOB-suite mobtyper")
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(`associated_pmid(s)` = col_character())), error=function(e) NULL)
   if (is.null(x) || nrow(x) == 0) return(NULL)
@@ -157,14 +183,17 @@ if (!is.null(mobtyper) && ncol(mobtyper) > 0) {
                       summarise(n_Plasmid_Clusters      = length(primary_cluster_id),
                                 Plasmid_Rep_Types        = paste(rep_type,      collapse = " | "),
                                 Plasmid_Relaxase_Types   = paste(relaxase_type, collapse = " | "))
+  dlog("DONE:  MOB-suite mobtyper (", nrow(mobtyper), " plasmids across ", n_distinct(mobtyper$Sample), " samples)")
 } else {
   mobtyper         <- tibble()
   mobtyper_summary <- tibble(Sample = character(), n_Plasmid_Clusters = integer(),
                              Plasmid_Rep_Types = character(), Plasmid_Relaxase_Types = character())
+  dlog("DONE:  MOB-suite mobtyper (no plasmids detected)")
 }
 
 
 
+dlog("START: MOB-suite biomarkers (oriT/oriV)")
 mobtyper_blast_raw <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   if (is.null(x) || nrow(x) == 0) return(NULL)
@@ -179,15 +208,18 @@ if (!is.null(mobtyper_blast_raw) && ncol(mobtyper_blast_raw) > 0) {
     select(Sample, contig.num, gene, biomarker, sstart, send, sstrand) %>%
     rename(type=biomarker, start=sstart, end=send, strand=sstrand) %>%
     mutate(start = as.integer(start), end = as.integer(end))
+  dlog("DONE:  MOB-suite biomarkers (", nrow(mobtyper_blast), " hits)")
 } else {
   mobtyper_blast <- tibble(Sample=character(), contig.num=character(), gene=character(),
                             type=character(), start=integer(), end=integer(), strand=character())
+  dlog("DONE:  MOB-suite biomarkers (no hits)")
 }
 
 ###############################################
 ###      Parse Resfinder phenotypes
 ###############################################
 
+dlog("START: ResFinder")
 safe_read_resfinder <- function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   sample_name <- basename(dirname(f))
@@ -207,6 +239,9 @@ safe_read_resfinder <- function(f) {
 }
 
 resfinder <- do.call(bind_rows, lapply(resfinder_files, safe_read_resfinder))
+dlog("DONE:  ResFinder (", nrow(resfinder), " rows)")
+
+dlog("START: ResFinder phenotype + genotype summary")
 
 phenotype <- resfinder %>% group_by(Sample) %>%
              summarise(phenotype = list(unlist(str_split(Phenotype, ",\\s*")))) %>% 
@@ -214,13 +249,15 @@ phenotype <- resfinder %>% group_by(Sample) %>%
              select(-phenotype)
              
 resfinder_genotype <- resfinder %>% group_by(Sample) %>% 
-  summarise(Resfinder_Genotype = paste(sort(unique(`Resistance gene`)), collapse = ", "))      
+  summarise(Resfinder_Genotype = paste(sort(unique(`Resistance gene`)), collapse = ", "))
+dlog("DONE:  ResFinder phenotype + genotype summary")      
   
 
 ###############################################
 ###        PointFinder + DisinFinder
 ###############################################
 
+dlog("START: PointFinder")
 pf <- do.call(
   bind_rows,
   lapply(pf_files, function(f) {
@@ -239,8 +276,10 @@ if (!is.null(pf) && ncol(pf) > 0) {
   pf <- pf %>%
     group_by(Sample) %>%
     summarise(Pointfinder_Mutation = paste(Mutation, collapse = " | "))
+  dlog("DONE:  PointFinder (", nrow(pf), " samples with mutations)")
 } else {
   pf <- tibble(Sample = character(), Pointfinder_Mutation = character())
+  dlog("DONE:  PointFinder (no mutations)")
 }
 
 
@@ -257,6 +296,7 @@ if (!is.null(pf) && ncol(pf) > 0) {
 ###           TXSScan results
 ###############################################
 
+dlog("START: TXSScan + Prodigal coordinate mapping")
 process_txsscan_and_prodigal_files <- function(txsscan_files, prodigal_files) {
   # Helper function to parse TXSScan results
   parse_all_systems_file <- function(filepath) {
@@ -349,12 +389,14 @@ process_txsscan_and_prodigal_files <- function(txsscan_files, prodigal_files) {
 
 
 txsscan <- process_txsscan_and_prodigal_files(txsscan_files, prodigal_files)
+dlog("DONE:  TXSScan + Prodigal coordinate mapping (", nrow(txsscan), " hits)")
 
 
 #################################################
 ###           TXXScan Models
 #################################################
 
+dlog("START: TXSScan system models (all_systems.txt)")
 process_file <- function(file_path) {
   # Read the file into a character vector
   lines <- readLines(file_path)
@@ -398,11 +440,13 @@ process_all_files <- function(file_list) {
 
 # Process files and create the final dataframe
 txsscan_mod <- process_all_files(txsscan_files2)
+dlog("DONE:  TXSScan system models (", nrow(txsscan_mod), " samples with systems)")
 
 #################################################
 ###        MobileElementFinder Data
 #################################################
 
+dlog("START: MobileElementFinder")
 mef_raw <- do.call(bind_rows, lapply(mef_files, function(path) {
   x <- tryCatch(
     read_csv(path, skip = 5, col_types = cols(.default = col_character()), show_col_types = FALSE),
@@ -423,9 +467,11 @@ if (!is.null(mef_raw) && ncol(mef_raw) > 0) {
                                     c("mite" = "miniature inverted repeat",
                                       "ice"  = "integrative conjugative element",
                                       "ime"  = "integrative mobilizable element")))
+  dlog("DONE:  MobileElementFinder (", nrow(mef), " elements)")
 } else {
   mef <- tibble(Sample=character(), contig.num=character(), gene=character(),
                 type=character(), start=integer(), end=integer(), strand=character())
+  dlog("DONE:  MobileElementFinder (no elements found)")
 }
                
 
@@ -433,6 +479,7 @@ if (!is.null(mef_raw) && ncol(mef_raw) > 0) {
 ###           Contig mapping
 #################################################
 
+dlog("START: Contig map (MOB-recon contig_report)")
 contigs <- do.call(bind_rows, lapply(contig_files, function(f) {
   x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   if (is.null(x) || nrow(x) == 0) return(NULL)
@@ -447,6 +494,9 @@ if (ncol(mobtyper) > 0) {
     left_join(mobtyper %>% select(Sample, primary_cluster_id, predicted_mobility, predicted_host_range_overall_name),
               by = c("Sample", "primary_cluster_id"))
 }
+dlog("DONE:  Contig map (", nrow(contigs), " contigs)")
+
+dlog("START: AMR/MGE contig annotation merge")
 
 if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
   amrfinderplus_merge <- amrfinderplus %>% select(Sample, `Contig id`, `Element symbol`, Type, Start, Stop, Strand) %>%
@@ -464,7 +514,8 @@ if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
 
 amr_mge_total <- bind_rows(amrfinderplus_merge, mef, txsscan, mobtyper_blast)
 
-contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num")) %>% select(-contig.num)        
+contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num")) %>% select(-contig.num)
+dlog("DONE:  AMR/MGE contig annotation merge (", nrow(contig_map), " rows)")        
 
 
 ###############################################
@@ -484,6 +535,7 @@ contig_map <- contigs %>% left_join(amr_mge_total, by=c("Sample", "contig.num"))
 ###         Gather all info
 ###############################################
 
+dlog("START: Final summary table join")
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
               left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
               left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
@@ -493,6 +545,7 @@ summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
               left_join(pf %>% select(Sample, Pointfinder_Mutation), by="Sample") %>%
               left_join(mobtyper_summary, by="Sample") %>%
               left_join(txsscan_mod, by="Sample")
+dlog("DONE:  Final summary table (", nrow(summary), " samples)")
 
 df_names <- list(
   "summary_out" = summary,
@@ -508,6 +561,9 @@ df_names <- list(
 ###             Write outputs
 ###############################################
 
+dlog("START: Writing outputs")
+
 write_xlsx(df_names, out_file1)
 write.csv(contig_map, out_file2, row.names=FALSE)
+dlog("DONE:  Outputs written — data_summary.R complete")
 

@@ -23,6 +23,8 @@ rule summarize_results:
     output:
         xlsx = os.path.join(output_dir, "SWAM-g_results.xlsx"),
         csv  = os.path.join(output_dir, "contig_map.csv")
+    params:
+        debug = debug_mode
     conda:
         "../envs/Renv.yaml"
     script:
