@@ -275,7 +275,7 @@ process_txsscan_and_prodigal_files <- function(txsscan_files, prodigal_files) {
     lapply(parse_all_systems_file) %>% 
     bind_rows() %>% 
     separate(hit_id, into = c("contig.num", "orf.num"), sep="_", remove = FALSE) %>%  # Retain hit_id column
-    separate(sys_id, into =c("meh", "sys_id2"), sep="t_") %>%
+    mutate(sys_id2 = sub(".*\\.prot_", "", sys_id)) %>%
     select(Sample, hit_id, contig.num, orf.num, gene_name, sys_id2, hit_begin_match, hit_end_match) %>% 
     mutate(across(c(hit_begin_match, hit_end_match), as.integer)) %>%  # Ensure positions are numeric
     rename(gene = gene_name, type = sys_id2, start = hit_begin_match, end = hit_end_match)
