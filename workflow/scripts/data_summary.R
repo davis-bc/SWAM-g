@@ -163,7 +163,7 @@ dlog("DONE:  ECTyper (", nrow(ectyper_simple), " E. coli samples)")
 
 dlog("START: MOB-suite mobtyper")
 mobtyper <- do.call(bind_rows, lapply(mobtyper_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols(`associated_pmid(s)` = col_character())), error=function(e) NULL)
+  x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   if (is.null(x) || nrow(x) == 0) return(NULL)
   x
 }))
