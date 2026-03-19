@@ -165,23 +165,31 @@ if (!is.null(mobtyper) && ncol(mobtyper) > 0) {
 
 
 
-mobtyper_blast <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+mobtyper_blast_raw <- do.call(bind_rows, lapply(mobtyper_blast_files, function(f) {
+  x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(f))
   x
-})) %>% 
-      separate(qseqid, into = c("accession", "gene"), sep="\\|", extra = "drop") %>%
-      mutate(contig.num = str_split_i(sseqid, " ", 1), sstrand=ifelse(sstrand=="minus", "negative", "positive")) %>%
-      select(Sample, contig.num, gene, biomarker, sstart, send, sstrand) %>%
-      rename(type=biomarker, start=sstart, end=send, strand=sstrand)
+}))
+
+if (!is.null(mobtyper_blast_raw) && ncol(mobtyper_blast_raw) > 0) {
+  mobtyper_blast <- mobtyper_blast_raw %>%
+    separate(qseqid, into = c("accession", "gene"), sep="\\|", extra = "drop") %>%
+    mutate(contig.num = str_split_i(sseqid, " ", 1), sstrand=ifelse(sstrand=="minus", "negative", "positive")) %>%
+    select(Sample, contig.num, gene, biomarker, sstart, send, sstrand) %>%
+    rename(type=biomarker, start=sstart, end=send, strand=sstrand) %>%
+    mutate(start = as.integer(start), end = as.integer(end))
+} else {
+  mobtyper_blast <- tibble(Sample=character(), contig.num=character(), gene=character(),
+                            type=character(), start=integer(), end=integer(), strand=character())
+}
 
 ###############################################
 ###      Parse Resfinder phenotypes
 ###############################################
 
 safe_read_resfinder <- function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
+  x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
   sample_name <- basename(dirname(f))
   
   # If empty, or only header, return row with Sample and NA Phenotype
@@ -216,7 +224,7 @@ resfinder_genotype <- resfinder %>% group_by(Sample) %>%
 pf <- do.call(
   bind_rows,
   lapply(pf_files, function(f) {
-    x <- tryCatch(read_tsv(f, col_types = cols()), error = function(e) NULL)
+    x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error = function(e) NULL)
     if (is.null(x) || nrow(x) == 0) return(NULL)
     x$Sample <- basename(dirname(f))
     # Coerce `PMID` (or other problematic columns) to character for consistency
@@ -313,7 +321,7 @@ process_txsscan_and_prodigal_files <- function(txsscan_files, prodigal_files) {
     map_df(function(txsscan_data) {
       # Find the matching prodigal file for the given sample
       sample <- unique(txsscan_data$Sample)
-      prodigal_file <- prodigal_files[grepl(sample, prodigal_files)]
+      prodigal_file <- prodigal_files[basename(dirname(prodigal_files)) == sample]
       if (length(prodigal_file) != 1) {
         warning(sprintf("No unique prodigal file found for sample '%s'. Skipping.", sample))
         return(txsscan_data)
@@ -395,7 +403,7 @@ txsscan_mod <- process_all_files(txsscan_files2)
 ###        MobileElementFinder Data
 #################################################
 
-mef <- do.call(bind_rows, lapply(mef_files, function(path) {
+mef_raw <- do.call(bind_rows, lapply(mef_files, function(path) {
   x <- tryCatch(
     read_csv(path, skip = 5, col_types = cols(.default = col_character()), show_col_types = FALSE),
     error = function(e) NULL
@@ -403,15 +411,22 @@ mef <- do.call(bind_rows, lapply(mef_files, function(path) {
   if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(path))
   x
-})) %>%
+}))
+
+if (!is.null(mef_raw) && ncol(mef_raw) > 0) {
+  mef <- mef_raw %>%
     mutate(contig.num = contig, start = as.integer(start), end = as.integer(end)) %>%
     select(Sample, contig.num, name, type, start, end) %>%
     rename(gene=name) %>%
-    mutate(strand="positive") %>% 
-    mutate(type = str_replace_all(type, 
-                                    c("mite" = "miniature inverted repeat", 
+    mutate(strand="positive") %>%
+    mutate(type = str_replace_all(type,
+                                    c("mite" = "miniature inverted repeat",
                                       "ice"  = "integrative conjugative element",
                                       "ime"  = "integrative mobilizable element")))
+} else {
+  mef <- tibble(Sample=character(), contig.num=character(), gene=character(),
+                type=character(), start=integer(), end=integer(), strand=character())
+}
                
 
 #################################################
@@ -419,8 +434,8 @@ mef <- do.call(bind_rows, lapply(mef_files, function(path) {
 #################################################
 
 contigs <- do.call(bind_rows, lapply(contig_files, function(f) {
-  x <- tryCatch(read_tsv(f, col_types = cols()), error=function(e) NULL)
-  if (is.null(x)) return(NULL)
+  x <- tryCatch(read_tsv(f, col_types = cols(.default = col_character())), error=function(e) NULL)
+  if (is.null(x) || nrow(x) == 0) return(NULL)
   x$Sample <- basename(dirname(f))
   x
 })) %>% 
@@ -441,7 +456,8 @@ if (!is.null(amrfinderplus) && ncol(amrfinderplus) > 0) {
           end=Stop,
           strand=Strand,
           type=Type) %>%
-    mutate(strand=ifelse(strand=="+", "positive", "negative"))
+    mutate(strand=ifelse(strand=="+", "positive", "negative"),
+           start=as.integer(start), end=as.integer(end))
 } else {
   amrfinderplus_merge <- tibble()
 }
