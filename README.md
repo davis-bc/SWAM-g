@@ -77,6 +77,8 @@ fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 `SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
+> **Testing locally first is recommended.** See the **Note** at the end of this section for how to run these three samples on a local workstation before submitting a full HPC run.
+
 ### Step 5. Run the pipeline on HPC
 The following is an example `run_swam-g.sh` driver script for executing `SWAM-g` via Slurm. Choose `large-batch` or `small-batch` based on the number of samples (see Step 2).
 
@@ -100,6 +102,7 @@ output="/pathto/directory/output"
 # Use large-batch for ≥50 samples, small-batch for <50 samples
 snakemake --profile config/slurm/large-batch \
           --config in_dir="$input" out_dir="$output" \
+          --local-cores 1 \
           --quiet
 
 ```
@@ -108,8 +111,15 @@ Then submit as:
 sbatch run_swam-g.sh
 ```
 
-### Step 6. Running on a local workstation
-For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically.
+> **Troubleshooting:** Add `debug=true` to `--config` to enable verbose step-by-step logging in `data_summary.R`. Each parsing section will print a `[DEBUG]` message with row counts to the rule log, making it easy to identify where a failure or slowdown occurs:
+> ```bash
+> snakemake --profile config/slurm/large-batch \
+>           --config in_dir="$input" out_dir="$output" debug=true \
+>           --local-cores 1 --forcerun summarize_results
+> ```
+
+### Note. Running on a local workstation
+For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically. This is the recommended way to validate the pipeline with the Step 4 test data before running a full HPC batch.
 
 ```bash
 bash run_swam-g_local.sh /path/to/input /path/to/output
@@ -120,6 +130,12 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 **macOS:** Run as above — conda handles all dependencies natively.
 
 **Windows (WSL2):** Open a WSL2 Ubuntu terminal, navigate to the cloned repository, and run the same command. Ensure conda is installed inside WSL (not the Windows host) before proceeding.
+
+> **Troubleshooting:** Append `debug=true` to the snakemake call inside `run_swam-g_local.sh` to enable verbose step-by-step logging in `data_summary.R`:
+> ```bash
+> snakemake --profile config/local/ \
+>           --config in_dir="$INPUT" out_dir="$OUTPUT" debug=true
+> ```
 
 ---
 
