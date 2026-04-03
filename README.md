@@ -137,6 +137,69 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 >           --config in_dir="$INPUT" out_dir="$OUTPUT" debug=true
 > ```
 
+### Optional: Pathogen Detection SNP-cluster enrichment
+`SWAM-g` can optionally append NCBI Pathogen Detection (PD) isolate metadata and SNP-cluster assignments to the final workbook. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
+
+By default, `SWAM-g` now queries the **current public PD FTP `latest_snps` release** at runtime (`pd_backend=ftp`). The lookup flow is:
+
+1. resolve `SRR -> BioSample` through NCBI SRA metadata when needed
+2. map the sample to a PD organism group using MASH species (or SRA species as fallback)
+3. find the current PD isolate record and SNP cluster from the live FTP release
+4. return up to `pd_comparator_limit` cluster comparators
+   - exact SNP-ranked neighbors when the public `SNP_distances.tsv` is small enough to scan
+   - otherwise 10 same-cluster comparators from the live cluster membership table
+
+Optional inputs:
+
+- a per-sample metadata file (`pd_sample_metadata_tsv`) if your sample names are not already SRR or BioSample accessions
+- `pd_backend=table` plus a PD isolates export (`pd_isolates_tsv`) and optional exceptions export (`pd_exceptions_tsv`) if you want to use local tables instead of the live FTP backend
+
+Supported metadata columns are matched case-insensitively and may include:
+
+- `Sample` (required if `pd_sample_metadata_tsv` is provided)
+- `SRR` / `srr_acc`
+- `BioSample` / `biosample_acc`
+- `target_acc`
+- `asm_acc`
+- `scientific_name` / `species`
+
+If `Sample` itself looks like an SRR accession (for example `SRR30768419`), `SWAM-g` will try to resolve the corresponding BioSample automatically through NCBI SRA metadata before joining against the PD table.
+
+Example:
+
+```bash
+snakemake --profile config/local/ \
+          --config \
+            in_dir="$INPUT" \
+            out_dir="$OUTPUT" \
+            pd_lookup=true \
+            pd_backend=ftp \
+            pd_comparator_limit=10 \
+            pd_sample_metadata_tsv="/path/to/sample_metadata.tsv"
+```
+
+If you prefer local table lookups instead:
+
+```bash
+snakemake --profile config/local/ \
+          --config \
+            in_dir="$INPUT" \
+            out_dir="$OUTPUT" \
+            pd_lookup=true \
+            pd_backend=table \
+            pd_isolates_tsv="/path/to/pd_isolates.tsv" \
+            pd_exceptions_tsv="/path/to/pd_isolate_exceptions.tsv"
+```
+
+The lookup outputs are written to:
+
+- `output/data/pd/pd_isolate_metadata.tsv`
+- `output/data/pd/pd_cluster_comparators.tsv`
+
+Reported statuses include `FOUND`, `FOUND_NO_CLUSTER`, `NOT_FOUND`, `QC_EXCEPTION`, `NO_ACCESSION`, `LOOKUP_ERROR`, `CONFIG_ERROR`, `UNSUPPORTED_ORGANISM`, and `DISABLED`.
+
+Because the public PD distance tables can be extremely large for some taxgroups, exact pairwise comparator ranking is not always practical. In those cases, `SWAM-g` falls back automatically to same-cluster comparators from the current live cluster membership table and records that choice in `pd_lookup_note` / `PD_Comparator_Mode`.
+
 ---
 
 ## Outputs
@@ -156,6 +219,7 @@ output/
     ├── mlst/                   # Multi-locus sequence typing across all samples (mlst.tsv)
     ├── mob-suite/              # Per-sample plasmid reconstruction and typing (mobtyper_results.txt)
     ├── mobileelementfinder/    # Per-sample mobile element annotations ({sample}.csv)
+    ├── pd/                     # Optional Pathogen Detection enrichment table (pd_isolate_metadata.tsv)
     ├── resfinder/              # Per-sample resistance gene hits and predicted phenotypes
     ├── serotype/
     │   ├── E.coli/             # ECTyper serotype + pathotype output (E. coli samples only)
@@ -170,10 +234,12 @@ A multi-sheet workbook collating all tool outputs. Each sheet can be used indepe
 
 | Sheet | Contents |
 |-------|----------|
-| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, predicted serotype, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
+| `summary_out` | One row per sample: MASH species assignment, optional Pathogen Detection accessions / SNP-cluster / source metadata / comparator mode, MLST sequence type, predicted serotype, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
 | `AMRFinderPlus` | Full per-hit AMRFinderPlus output including AMR, stress, and virulence elements with contig ID, coordinates, and strand |
 | `assembly_QA` | CheckM2 completeness and contamination estimates plus mean read coverage; includes a `QA` pass/fail flag (N50 > 20 kb, total contigs < 500, coverage ≥ 30×) |
 | `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |
+| `pd_isolate_metadata` | Optional PD enrichment table containing resolved SRR/BioSample accessions, PD target/assembly accessions, SNP cluster, source metadata, comparator mode/count, lookup source, and status for each sample |
+| `pd_cluster_comparators` | Up to 10 live PD comparators per queried isolate, including rank, SNP distance when available, accession fields, and source environment metadata for rough source-tracking review |
 | `salmonella_serotype` | SeqSero2 antigenic profile and predicted serotype (populated for *Salmonella* samples only; empty otherwise) |
 | `ecoli_serotype` | ECTyper serotype and pathotype predictions (populated for *E. coli* samples only; empty otherwise) |
 
@@ -217,8 +283,6 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 | MOB-suite | latest (pip) | Unpinned |
 | MobileElementFinder | latest (pip) | Unpinned |
 | SeqSero2 | git HEAD | Installed from source |
-
-
 
 
 

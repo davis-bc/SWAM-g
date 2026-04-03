@@ -2,11 +2,33 @@
 #    Generate Summary File
 # ---------------------------
 
+rule pd_isolate_metadata:
+    input:
+        mash = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
+    output:
+        metadata    = os.path.join(output_dir, "data", "pd", "pd_isolate_metadata.tsv"),
+        comparators = os.path.join(output_dir, "data", "pd", "pd_cluster_comparators.tsv")
+    params:
+        samples             = samples,
+        enabled             = pd_lookup_enabled,
+        backend             = pd_lookup_backend,
+        comparator_limit    = pd_comparator_limit,
+        sample_metadata_tsv = pd_sample_metadata_tsv,
+        pd_isolates_tsv     = pd_isolates_tsv,
+        pd_exceptions_tsv   = pd_exceptions_tsv
+    conda:
+        "../envs/pd_lookup.yaml"
+    script:
+        "../scripts/pd_isolate_lookup.py"
+
+
 rule summarize_results:
     input:
         checkm               = expand(os.path.join(output_dir, "data", "checkm2", "{sample}", "quality_report.tsv"), sample=samples),
         mash                 = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv"),
         mlst                 = os.path.join(output_dir, "data", "mlst", "mlst.tsv"),
+        pd_metadata          = os.path.join(output_dir, "data", "pd", "pd_isolate_metadata.tsv"),
+        pd_comparators       = os.path.join(output_dir, "data", "pd", "pd_cluster_comparators.tsv"),
         ectyper_files        = expand(os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv"), sample=samples),
         resfinder_files      = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"), sample=samples),
         pf_files             = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "PointFinder_results.txt"), sample=samples),
