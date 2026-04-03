@@ -1,14 +1,15 @@
-```text
-███████╗██╗    ██╗ █████╗ ███╗   ███╗       ██████╗
-██╔════╝██║    ██║██╔══██╗████╗ ████║      ██╔════╝
-███████╗██║ █╗ ██║███████║██╔████╔██║█████╗██║  ███╗
-╚════██║██║███╗██║██╔══██║██║╚██╔╝██║╚════╝██║   ██║
-███████║╚███╔███╔╝██║  ██║██║ ╚═╝ ██║      ╚██████╔╝
-╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝     ╚═╝       ╚═════╝
-```
+```                                                                                                                                                                                                                                                                                                            
+                                         _______          __     __  __             
+                                        / ____\ \        / /\   |  \/  |            
+                                       | (___  \ \  /\  / /  \  | \  / |______ __ _ 
+                                        \___ \  \ \/  \/ / /\ \ | |\/| |______/ _` |
+                                        ____) |  \  /\  / ____ \| |  | |     | (_| |
+                                       |_____/    \/  \/_/    \_\_|  |_|      \__, |
+                                                                               __/ |
+                                                                              |___/ 
 
-# SWAM-g
-SWAM-g is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, and optional Pathogen Detection enrichment into one reporting workflow.
+```
+`SWAM-g` is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, phylogenetics, and optional PathogenDetection metadata enrichment into one reporting workflow.
 
 
 ![SWAM-g pipeline](docs/SWAM-g_diagram-V2.drawio.png)
