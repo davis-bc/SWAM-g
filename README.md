@@ -74,7 +74,7 @@ For example, to give `unicylcer` more RAM in the large-batch profile:
 set-resources:
   unicylcer:
     mem_mb: 200000
-    runtime: "6-00:00:00"
+    runtime: 8640
 ```
 
 ### Step 4. Download test data
@@ -155,6 +155,7 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 
 ```
 output/
+├── mashtree.nwk               # Quick assembly relationship sketch from mashtree
 ├── SWAM-g_results.xlsx         # Primary deliverable — multi-sheet workbook (see below)
 ├── contig_map.csv              # Per-contig annotation map (see below)
 └── data/
@@ -186,6 +187,10 @@ A multi-sheet workbook collating all tool outputs. Each sheet can be used indepe
 | `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |
 | `salmonella_serotype` | SeqSero2 antigenic profile and predicted serotype (populated for *Salmonella* samples only; empty otherwise) |
 | `ecoli_serotype` | ECTyper serotype and pathotype predictions (populated for *E. coli* samples only; empty otherwise) |
+
+### `mashtree.nwk`
+
+A run-level Newick tree sketched from the symlinked assembly FASTAs in `output/data/unicycler/batch/{sample}.fasta` using `mashtree`. Tip labels follow the pipeline sample names.
 
 ### `contig_map.csv`
 

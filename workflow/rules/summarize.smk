@@ -1,4 +1,30 @@
 # ---------------------------
+#     Generate Mashtree
+# ---------------------------
+
+rule mashtree:
+    input:
+        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples)
+    output:
+        tree = os.path.join(output_dir, "mashtree.nwk")
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "mashtree.txt")
+    threads: 8
+    conda:
+        "../envs/mashtree.yaml"
+    shell:
+        r"""
+        inputs=({input.symlink})
+
+        if [ "${{#inputs[@]}}" -eq 1 ]; then
+            sample_name=$(basename "${{inputs[0]}}" .fasta)
+            printf '%s;\n' "$sample_name" > {output.tree}
+        else
+            mashtree --numcpus {threads} "${{inputs[@]}}" > {output.tree}
+        fi
+        """
+
+# ---------------------------
 #    Generate Summary File
 # ---------------------------
 
