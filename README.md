@@ -1,5 +1,14 @@
-# SWAM-g: A Comprehensive Whole-Genome Sequencing Workflow for Environmental AMR Surveillance
-This pipeline is designed to process Illumina paired-end whole-genome sequencing (WGS) data for the U.S. EPA's Surface Water AMR Monitoring (SWAM) system. It was constructed to be a robust, species-agnostic pipeline for assembling and annotating WGS data for antimicrobial resistance (AMR) monitoring. `SWAM-g` (SWAM-genome) calls several canonical pipelines, including NCBI's [AMRFinderPlus](https://github.com/ncbi/amr/tree/master), CGE's [ResFinder](https://github.com/genomicepidemiology/resfinder) and [MobileElementFinder](https://pypi.org/project/MobileElementFinder/), PHAC NML's [MOB-suite](https://github.com/phac-nml/mob-suite) and [ECTyper](https://github.com/phac-nml/ecoli_serotyping), [TXSScan](https://github.com/macsy-models/TXSScan), as well as [MLST](https://github.com/tseemann/mlst) for comprehensive assessment of AMR genotype, predicted phenotype, sequence type, and the presence and functionality of plasmids, protein secretion systems, and associated mobile genetic elements (MGEs). It leverages the circularity flags from the [SPAdes](https://github.com/ablab/spades/tree/main) wrapper, [Unicycler](https://github.com/rrwick/Unicycler?tab=readme-ov-file#installation), for accurate plasmid reconstruction and typing using [MOB-recon](https://github.com/phac-nml/mob-suite). `SWAM-g` uses [MASH screen](https://github.com/marbl/Mash) against a curated GTDB reference sketch for rapid speciation and [CheckM2](https://github.com/chklovski/CheckM2) for assembly quality assessment. The taxonomic assignments from MASH are fed to both [AMRFinderPlus](https://github.com/ncbi/amr/tree/master) and [ResFinder](https://github.com/genomicepidemiology/resfinder) to enable species-specific AMR profiling. If *Salmonella* or *E. coli* genomes are detected, `SWAM-g` will conditionally run [SeqSero2](https://github.com/denglab/SeqSero2/tree/master) for serotyping *Salmonella* or [ECTyper](https://github.com/phac-nml/ecoli_serotyping) for serotyping + pathotyping *E. coli*. All outputs are then collated into easy-to-use summary tables for downstream analysis.
+```text
+███████╗██╗    ██╗ █████╗ ███╗   ███╗       ██████╗
+██╔════╝██║    ██║██╔══██╗████╗ ████║      ██╔════╝
+███████╗██║ █╗ ██║███████║██╔████╔██║█████╗██║  ███╗
+╚════██║██║███╗██║██╔══██║██║╚██╔╝██║╚════╝██║   ██║
+███████║╚███╔███╔╝██║  ██║██║ ╚═╝ ██║      ╚██████╔╝
+╚══════╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝     ╚═╝       ╚═════╝
+```
+
+# SWAM-g
+SWAM-g is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, and optional Pathogen Detection enrichment into one reporting workflow.
 
 
 ![SWAM-g pipeline](docs/pipeline_dag.png)
@@ -283,7 +292,3 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 | MOB-suite | latest (pip) | Unpinned |
 | MobileElementFinder | latest (pip) | Unpinned |
 | SeqSero2 | git HEAD | Installed from source |
-
-
-
-
