@@ -16,6 +16,7 @@ resfinder_files      <- snakemake@input[["resfinder_files"]]
 pf_files             <- snakemake@input[["pf_files"]]
 afp_files            <- snakemake@input[["afp_files"]]
 seqsero_files        <- snakemake@input[["seqsero_files"]]
+sistr_files          <- snakemake@input[["sistr_files"]]
 ectyper_files        <- snakemake@input[["ectyper_files"]]
 mobtyper_files       <- snakemake@input[["mobtyper_files"]]
 coverage_files       <- snakemake@input[["coverage_files"]]
@@ -44,6 +45,156 @@ if (debug_mode) {
 
 dlog <- function(...) {
   if (debug_mode) message("[DEBUG] ", ...)
+}
+
+normalize_empty <- function(x) {
+  x <- as.character(x)
+  x <- str_squish(x)
+  x[x %in% c("", "-", "NA", "N/A", "NULL", "null", "Not available")] <- NA_character_
+  x
+}
+
+display_serotype <- function(x) {
+  x <- normalize_empty(x)
+  ifelse(
+    is.na(x),
+    NA_character_,
+    x %>%
+      str_replace("^Salmonella\\s+enterica\\s+(subsp\\.?\\s+enterica\\s+)?", "") %>%
+      str_replace("^serovar\\s+", "")
+  )
+}
+
+canonical_serotype <- function(x) {
+  x <- display_serotype(x)
+  ifelse(
+    is.na(x),
+    NA_character_,
+    x %>%
+      str_to_lower() %>%
+      str_replace_all("[[:punct:]]", " ") %>%
+      str_squish()
+  )
+}
+
+is_ambiguous_serotype <- function(x) {
+  x <- display_serotype(x)
+  ifelse(
+    is.na(x),
+    TRUE,
+    str_detect(
+      str_to_lower(x),
+      "ambiguous|multiple|unknown|unidentified|^\\-+(:\\-+)*$|\\bor\\b|and/or|not\\s+predicted"
+    )
+  )
+}
+
+score_seqsero <- function(identification, serotype, antigenic_profile, status) {
+  status <- str_to_upper(coalesce(normalize_empty(status), "REPORTED"))
+  identification <- str_to_lower(coalesce(normalize_empty(identification), ""))
+  serotype <- display_serotype(serotype)
+  antigenic_profile <- normalize_empty(antigenic_profile)
+
+  if (status == "SKIPPED_NOT_SALMONELLA") {
+    return(-5)
+  }
+
+  score <- 0
+  if (str_detect(identification, "salmonella")) score <- score + 1
+  if (!is.na(serotype) && !isTRUE(is_ambiguous_serotype(serotype))) {
+    score <- score + 3
+  } else if (!is.na(serotype)) {
+    score <- score + 1
+  }
+  if (!is.na(antigenic_profile)) score <- score + 1
+  if (str_detect(identification, "contamin")) score <- score - 2
+  if (str_detect(identification, "unident|incorrect")) score <- score - 2
+  score
+}
+
+score_sistr <- function(serovar, serovar_antigen, serovar_cgmlst, qc_status, qc_messages, cgmlst_st) {
+  qc_status <- str_to_upper(coalesce(normalize_empty(qc_status), ""))
+  serovar <- display_serotype(serovar)
+  serovar_antigen <- display_serotype(serovar_antigen)
+  serovar_cgmlst <- display_serotype(serovar_cgmlst)
+  qc_messages <- normalize_empty(qc_messages)
+  cgmlst_st <- normalize_empty(cgmlst_st)
+
+  if (qc_status == "SKIPPED_NOT_SALMONELLA") {
+    return(-5)
+  }
+
+  score <- 0
+  if (!is.na(serovar) && !isTRUE(is_ambiguous_serotype(serovar))) {
+    score <- score + 3
+  } else if (!is.na(serovar)) {
+    score <- score + 1
+  }
+  if (!is.na(serovar_antigen)) score <- score + 1
+  if (!is.na(serovar_cgmlst)) score <- score + 1
+  if (!is.na(cgmlst_st)) score <- score + 1
+  if (qc_status == "PASS") score <- score + 2
+  if (qc_status == "FAIL") score <- score - 2
+  if (!is.na(qc_messages)) score <- score - 1
+  score
+}
+
+pick_salmonella_consensus <- function(seqsero_identification, seqsero_serotype, seqsero_antigenic_profile,
+                                      seqsero_status, sistr_serovar, sistr_serovar_antigen,
+                                      sistr_serovar_cgmlst, sistr_qc_status, sistr_qc_messages, sistr_cgmlst_st) {
+  seq_key <- canonical_serotype(seqsero_serotype)
+  sistr_key <- canonical_serotype(sistr_serovar)
+  seq_score <- score_seqsero(seqsero_identification, seqsero_serotype, seqsero_antigenic_profile, seqsero_status)
+  sistr_score <- score_sistr(sistr_serovar, sistr_serovar_antigen, sistr_serovar_cgmlst, sistr_qc_status, sistr_qc_messages, sistr_cgmlst_st)
+
+  agreement <- case_when(
+    !is.na(seq_key) && !is.na(sistr_key) && seq_key == sistr_key ~ "agree",
+    !is.na(seq_key) && !is.na(sistr_key) ~ "disagree",
+    TRUE ~ NA_character_
+  )
+
+  if (is.na(seq_key) && is.na(sistr_key)) {
+    return(tibble(
+      Predicted_Serotype = NA_character_,
+      Salmonella_Serotype_Source = NA_character_,
+      Serotype_Agreement = agreement,
+      SeqSero2_Score = seq_score,
+      SISTR_Score = sistr_score
+    ))
+  }
+
+  if (!is.na(seq_key) && !is.na(sistr_key) && seq_key == sistr_key) {
+    return(tibble(
+      Predicted_Serotype = coalesce(display_serotype(sistr_serovar), display_serotype(seqsero_serotype)),
+      Salmonella_Serotype_Source = "SeqSero2+SISTR",
+      Serotype_Agreement = agreement,
+      SeqSero2_Score = seq_score,
+      SISTR_Score = sistr_score
+    ))
+  }
+
+  prefer_sistr <- FALSE
+  if (is.na(seq_key)) {
+    prefer_sistr <- TRUE
+  } else if (!is.na(sistr_key) && sistr_score > seq_score) {
+    prefer_sistr <- TRUE
+  } else if (!is.na(sistr_key) && sistr_score == seq_score &&
+             str_to_upper(coalesce(normalize_empty(sistr_qc_status), "")) == "PASS") {
+    prefer_sistr <- TRUE
+  }
+
+  source <- if (prefer_sistr) "SISTR" else "SeqSero2"
+  if (agreement == "disagree") {
+    source <- paste0(source, "_preferred")
+  }
+
+  tibble(
+    Predicted_Serotype = if (prefer_sistr) display_serotype(sistr_serovar) else display_serotype(seqsero_serotype),
+    Salmonella_Serotype_Source = source,
+    Serotype_Agreement = agreement,
+    SeqSero2_Score = seq_score,
+    SISTR_Score = sistr_score
+  )
 }
 
 
@@ -122,22 +273,125 @@ seqsero <- do.call(bind_rows, lapply(seqsero_files, function(f) {
     error=function(e) NULL
   )
   if (is.null(x) || nrow(x) == 0) return(NULL)
-  x
+  x %>%
+    mutate(
+      Sample = coalesce(
+        if ("Sample name" %in% names(x)) x[["Sample name"]] else NA_character_,
+        if ("Output directory" %in% names(x)) basename(x[["Output directory"]]) else NA_character_,
+        basename(dirname(f))
+      ),
+      SeqSero2_Identification = if ("Predicted identification" %in% names(x)) x[["Predicted identification"]] else NA_character_,
+      SeqSero2_Antigenic_Profile = if ("Predicted antigenic profile" %in% names(x)) x[["Predicted antigenic profile"]] else NA_character_,
+      SeqSero2_Serotype = if ("Predicted serotype" %in% names(x)) x[["Predicted serotype"]] else NA_character_,
+      SeqSero2_Status = if ("Workflow status" %in% names(x)) x[["Workflow status"]] else "REPORTED"
+    ) %>%
+    select(Sample, SeqSero2_Identification, SeqSero2_Antigenic_Profile, SeqSero2_Serotype, SeqSero2_Status)
 }))
 
 if (!is.null(seqsero) && ncol(seqsero) > 0) {
   seqsero <- seqsero %>%
-    mutate(Sample = basename(`Output directory`)) %>%
-    rename(Predicted_Antigenic_Profile = `Predicted antigenic profile`,
-           Predicted_Serotype          = `Predicted serotype`)
+    mutate(across(c(SeqSero2_Identification, SeqSero2_Antigenic_Profile, SeqSero2_Serotype, SeqSero2_Status), normalize_empty))
 } else {
-  seqsero <- tibble(Sample = character(), `Predicted identification` = character(),
-                    Predicted_Antigenic_Profile = character(), Predicted_Serotype = character())
+  seqsero <- tibble(
+    Sample = character(),
+    SeqSero2_Identification = character(),
+    SeqSero2_Antigenic_Profile = character(),
+    SeqSero2_Serotype = character(),
+    SeqSero2_Status = character()
+  )
 }
 
-seqsero_simple <- seqsero %>% filter(grepl("Salmonella", `Predicted identification`)) %>%
-  relocate(Sample) %>% select(-any_of(c("Sample name", "Output directory")))
+seqsero_simple <- seqsero %>%
+  filter(coalesce(SeqSero2_Status, "REPORTED") != "SKIPPED_NOT_SALMONELLA") %>%
+  relocate(Sample)
 dlog("DONE:  SeqSero2 (", nrow(seqsero_simple), " Salmonella samples)")
+
+dlog("START: SISTR (Salmonella serotyping)")
+sistr <- do.call(bind_rows, lapply(sistr_files, function(f) {
+  x <- tryCatch(
+    read_tsv(f, col_types = cols(.default = col_character())),
+    error = function(e) NULL
+  )
+  if (is.null(x) || nrow(x) == 0) return(NULL)
+  x %>%
+    mutate(
+      Sample = coalesce(if ("genome" %in% names(x)) x[["genome"]] else NA_character_, basename(dirname(f))),
+      SISTR_Serovar = if ("serovar" %in% names(x)) x[["serovar"]] else NA_character_,
+      SISTR_Serovar_Antigen = if ("serovar_antigen" %in% names(x)) x[["serovar_antigen"]] else NA_character_,
+      SISTR_Serovar_CGMLST = if ("serovar_cgmlst" %in% names(x)) x[["serovar_cgmlst"]] else NA_character_,
+      SISTR_cgMLST_ST = if ("cgmlst_ST" %in% names(x)) x[["cgmlst_ST"]] else NA_character_,
+      SISTR_Serogroup = if ("serogroup" %in% names(x)) x[["serogroup"]] else NA_character_,
+      SISTR_O_Antigen = if ("o_antigen" %in% names(x)) x[["o_antigen"]] else NA_character_,
+      SISTR_H1 = if ("h1" %in% names(x)) x[["h1"]] else NA_character_,
+      SISTR_H2 = if ("h2" %in% names(x)) x[["h2"]] else NA_character_,
+      SISTR_QC_Status = if ("qc_status" %in% names(x)) x[["qc_status"]] else NA_character_,
+      SISTR_QC_Messages = if ("qc_messages" %in% names(x)) x[["qc_messages"]] else NA_character_
+    ) %>%
+    select(Sample, SISTR_Serovar, SISTR_Serovar_Antigen, SISTR_Serovar_CGMLST,
+           SISTR_cgMLST_ST, SISTR_Serogroup, SISTR_O_Antigen, SISTR_H1, SISTR_H2,
+           SISTR_QC_Status, SISTR_QC_Messages)
+}))
+
+if (!is.null(sistr) && ncol(sistr) > 0) {
+  sistr <- sistr %>%
+    mutate(across(c(SISTR_Serovar, SISTR_Serovar_Antigen, SISTR_Serovar_CGMLST, SISTR_cgMLST_ST,
+                    SISTR_Serogroup, SISTR_O_Antigen, SISTR_H1, SISTR_H2, SISTR_QC_Status,
+                    SISTR_QC_Messages), normalize_empty))
+} else {
+  sistr <- tibble(
+    Sample = character(),
+    SISTR_Serovar = character(),
+    SISTR_Serovar_Antigen = character(),
+    SISTR_Serovar_CGMLST = character(),
+    SISTR_cgMLST_ST = character(),
+    SISTR_Serogroup = character(),
+    SISTR_O_Antigen = character(),
+    SISTR_H1 = character(),
+    SISTR_H2 = character(),
+    SISTR_QC_Status = character(),
+    SISTR_QC_Messages = character()
+  )
+}
+
+sistr_simple <- sistr %>%
+  filter(coalesce(SISTR_QC_Status, "REPORTED") != "SKIPPED_NOT_SALMONELLA") %>%
+  relocate(Sample)
+dlog("DONE:  SISTR (", nrow(sistr_simple), " Salmonella samples)")
+
+salmonella_serotype <- gtdbtk %>%
+  select(Sample, Species) %>%
+  left_join(seqsero, by = "Sample") %>%
+  left_join(sistr, by = "Sample") %>%
+  mutate(
+    across(c(SeqSero2_Identification, SeqSero2_Antigenic_Profile, SeqSero2_Serotype, SeqSero2_Status,
+             SISTR_Serovar, SISTR_Serovar_Antigen, SISTR_Serovar_CGMLST, SISTR_cgMLST_ST,
+             SISTR_Serogroup, SISTR_O_Antigen, SISTR_H1, SISTR_H2, SISTR_QC_Status, SISTR_QC_Messages),
+           normalize_empty)
+  ) %>%
+  {
+    bind_cols(
+      .,
+      pmap_dfr(
+        list(.$SeqSero2_Identification, .$SeqSero2_Serotype, .$SeqSero2_Antigenic_Profile, .$SeqSero2_Status,
+             .$SISTR_Serovar, .$SISTR_Serovar_Antigen, .$SISTR_Serovar_CGMLST, .$SISTR_QC_Status,
+             .$SISTR_QC_Messages, .$SISTR_cgMLST_ST),
+        pick_salmonella_consensus
+      )
+    )
+  } %>%
+  mutate(
+    SeqSero2_Serotype = display_serotype(SeqSero2_Serotype),
+    SISTR_Serovar = display_serotype(SISTR_Serovar),
+    SISTR_Serovar_Antigen = display_serotype(SISTR_Serovar_Antigen),
+    SISTR_Serovar_CGMLST = display_serotype(SISTR_Serovar_CGMLST)
+  ) %>%
+  filter(
+    Species == "Salmonella enterica" |
+      !is.na(Predicted_Serotype)
+  )
+
+salmonella_serotype_simple <- salmonella_serotype %>%
+  relocate(Sample, Species, Predicted_Serotype, Salmonella_Serotype_Source, Serotype_Agreement)
 
 dlog("START: ECTyper (E. coli serotyping)")
 ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
@@ -538,7 +792,12 @@ dlog("DONE:  AMR/MGE contig annotation merge (", nrow(contig_map), " rows)")
 dlog("START: Final summary table join")
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
               left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
-              left_join(seqsero %>% select(Sample, Predicted_Serotype), by="Sample") %>%
+              left_join(
+                salmonella_serotype %>%
+                  select(Sample, Predicted_Serotype, Salmonella_Serotype_Source,
+                         SeqSero2_Serotype, SISTR_Serovar, SISTR_QC_Status, Serotype_Agreement),
+                by="Sample"
+              ) %>%
               left_join(afp_genotype, by="Sample") %>%
               left_join(resfinder_genotype, by="Sample") %>%
               left_join(phenotype, by="Sample") %>%
@@ -552,7 +811,9 @@ df_names <- list(
   "AMRFinderPlus" = amrfinderplus,
   "assembly_QA" = assembly_stats,
   "MOBrecon_summary" = mobtyper,
-  "salmonella_serotype" = seqsero_simple,
+  "salmonella_serotype" = salmonella_serotype_simple,
+  "salmonella_seqsero2" = seqsero_simple,
+  "salmonella_sistr" = sistr_simple,
   "ecoli_serotype" = ectyper_simple
 )
 
@@ -566,4 +827,3 @@ dlog("START: Writing outputs")
 write_xlsx(df_names, out_file1)
 write.csv(contig_map, out_file2, row.names=FALSE)
 dlog("DONE:  Outputs written — data_summary.R complete")
-

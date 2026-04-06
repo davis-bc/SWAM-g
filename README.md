@@ -22,7 +22,7 @@
 - **macOS:** supported via conda; Apple Silicon (M-series) users may need [Rosetta 2](https://support.apple.com/en-us/102527) for some tools.
 - **Windows:** use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) with Ubuntu — install conda inside WSL and follow the Linux instructions below.
 
-> **Databases:** All reference databases required by each tool (AMRFinderPlus, MOB-suite, CheckM2, ResFinder, TXSScan, and ECTyper) are downloaded and configured automatically on the first run. No manual database setup is required.
+> **Databases:** All reference databases required by each tool (AMRFinderPlus, MOB-suite, CheckM2, ResFinder, TXSScan, ECTyper, and SISTR) are downloaded and configured automatically on the first run. No manual database setup is required.
 
 ### Step 0. Install conda/mamba manager, Snakemake, and SRA-tools
 `SWAM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
@@ -64,6 +64,14 @@ default-resources:
 ```
 
 More information on Snakemake configurations for different compute environments can be found in the [Snakemake docs](https://snakemake.readthedocs.io/en/stable/).
+
+### Salmonella serotyping behavior
+Salmonella serotyping now uses **two complementary methods**:
+
+1. **SeqSero2 allele mode** on the `fastp`-cleaned paired-end reads for targeted antigen assembly and serotype prediction
+2. **SISTR** on the draft assembly for antigen/cgMLST-based confirmation
+
+Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, the workflow writes a small placeholder TSV for the expected output path and skips the serotyping runtime for that sample. The final workbook cross-references both methods and reports a consensus serotype, preferring the cleaner interpretable result while preserving agreement and QC context.
 
 ### Step 3. Tune resources (optional)
 All per-rule resource allocations are defined in the profile config under `set-resources` and `set-threads`. Edit the appropriate profile file to adjust memory or runtime for any rule — no changes to `.smk` files are needed.
@@ -170,7 +178,10 @@ output/
     ├── resfinder/              # Per-sample resistance gene hits and predicted phenotypes
     ├── serotype/
     │   ├── E.coli/             # ECTyper serotype + pathotype output (E. coli samples only)
-    │   └── Salmonella/         # SeqSero2 antigenic profile + serotype (Salmonella samples only)
+    │   └── Salmonella/         # SeqSero2 allele-mode + SISTR serotyping outputs (MASH-called Salmonella only)
+    │       └── {sample}/
+    │           ├── SeqSero_result.tsv
+    │           └── sistr.tsv
     ├── txsscan/                # Per-sample secretion system predictions (all_systems.tsv)
     └── unicycler/              # Assemblies (assembly.fasta), coverage TSVs, and protein FAAs
 ```
@@ -181,11 +192,13 @@ A multi-sheet workbook collating all tool outputs. Each sheet can be used indepe
 
 | Sheet | Contents |
 |-------|----------|
-| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, predicted serotype, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
+| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, consensus predicted serotype, Salmonella serotype evidence/source fields (`Salmonella_Serotype_Source`, `SeqSero2_Serotype`, `SISTR_Serovar`, `SISTR_QC_Status`, `Serotype_Agreement`), AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
 | `AMRFinderPlus` | Full per-hit AMRFinderPlus output including AMR, stress, and virulence elements with contig ID, coordinates, and strand |
 | `assembly_QA` | CheckM2 completeness and contamination estimates plus mean read coverage; includes a `QA` pass/fail flag (N50 > 20 kb, total contigs < 500, coverage ≥ 30×) |
 | `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |
-| `salmonella_serotype` | SeqSero2 antigenic profile and predicted serotype (populated for *Salmonella* samples only; empty otherwise) |
+| `salmonella_serotype` | Cross-referenced Salmonella serotyping table with consensus serotype, SeqSero2 result, SISTR result, agreement flag, and scoring/QC support (populated for MASH-called *Salmonella* samples only) |
+| `salmonella_seqsero2` | SeqSero2 allele-mode serotyping output parsed from clean paired-end reads; non-Salmonella samples are represented by `SKIPPED_NOT_SALMONELLA` placeholder rows |
+| `salmonella_sistr` | SISTR serotyping output parsed from assemblies, including cgMLST/QC support fields; non-Salmonella samples are represented by `SKIPPED_NOT_SALMONELLA` placeholder rows |
 | `ecoli_serotype` | ECTyper serotype and pathotype predictions (populated for *E. coli* samples only; empty otherwise) |
 
 ### `mashtree.nwk`
@@ -231,13 +244,5 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 | ResFinder | latest | Unpinned |
 | MOB-suite | latest (pip) | Unpinned |
 | MobileElementFinder | latest (pip) | Unpinned |
-| SeqSero2 | git HEAD | Installed from source |
-<<<<<<< HEAD
-
-
-
-
-
-
-=======
->>>>>>> f8290b6 (Refresh README banner)
+| SeqSero2 | 1.3.1 | Exact pin from Bioconda; environment currently solved with `python=3.7`, `biopython=1.73` |
+| SISTR | ≥1.1.3 | Minimum version; environment currently pinned to `python=3.11`, `setuptools<81` for CLI compatibility |

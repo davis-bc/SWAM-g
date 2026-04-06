@@ -44,6 +44,7 @@ groups:
   txsscan: "txsscan"
   ectyper: "ectyper"
   seqsero: "seqsero"
+  sistr: "sistr"
 
 # -----------------------------------------------------------
 #  Batch size — number of samples per group job
@@ -61,6 +62,7 @@ group-components:
   txsscan: 32
   ectyper: 32
   seqsero: 32
+  sistr: 32
 
 # -----------------------------------------------------------
 #  Per-rule thread allocation
@@ -78,7 +80,8 @@ set-threads:
   checkm2: 1
   txsscan: 1
   ectyper: 1
-  seqsero: 1
+  seqsero: 4
+  sistr: 4
   mlst: 1
 
 # -----------------------------------------------------------
@@ -131,7 +134,10 @@ set-resources:
     mem_mb: 5000             # × 32 = 160 GB
     runtime: 600
   seqsero:
-    mem_mb: 2000             # × 32 = 64 GB
+    mem_mb: 4000             # × 32 = 128 GB
+    runtime: 120
+  sistr:
+    mem_mb: 4000             # × 32 = 128 GB
     runtime: 120
 
   # --- Aggregate (not grouped — runs once across all samples) ---

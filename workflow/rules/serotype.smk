@@ -23,23 +23,106 @@ rule mlst:
 
 rule seqsero:
     input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta")
+        r1_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
+        r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz"),
+        mash     = mash_taxonomy_file
     output:
         sq2 = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv")
+    threads: 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.seqsero2.txt")
     conda: "../envs/seqsero.yaml"
     shell:
+        r"""
+        outdir=$(dirname {output.sq2})
+        mkdir -p "$outdir"
+
+        is_salmonella=$(python3 - "{input.mash}" "{wildcards.sample}" <<'PY'
+import csv
+import sys
+
+mash_tsv, sample = sys.argv[1], sys.argv[2]
+sample_key = sample + ".chromosome"
+
+with open(mash_tsv) as handle:
+    reader = csv.DictReader(handle, delimiter="\t")
+    for row in reader:
+        if row["user_genome"] != sample_key:
+            continue
+        print("1" if "g__Salmonella" in row["classification"] else "0")
+        break
+    else:
+        raise SystemExit("Sample '%s' missing from %s" % (sample, mash_tsv))
+PY
+)
+
+        if [ "$is_salmonella" != "1" ]; then
+            printf 'Sample name\tOutput directory\tPredicted identification\tPredicted antigenic profile\tPredicted serotype\tWorkflow status\n' > {output.sq2}
+            printf '{wildcards.sample}\t%s\tMASH non-Salmonella skip\t\t\tSKIPPED_NOT_SALMONELLA\n' "$outdir" >> {output.sq2}
+            exit 0
+        fi
+
+        SeqSero2_package.py -m a \
+                            -t 2 \
+                            -p {threads} \
+                            -i {input.r1_clean} {input.r2_clean} \
+                            -d "$outdir" \
+                            -n {wildcards.sample}
         """
-       
-        SeqSero2_package.py -m k \
-                            -t 4 \
-                            -i {input.assembly} \
-                            -d $(dirname {output.sq2}) 
-        
-        # -m 'k'(raw reads and genome assembly k-mer)
-        # -t '4' for genome assembly
-        
+
+
+# -------------------------------
+#   Serotype Salmonella (SISTR)
+# -------------------------------
+
+rule sistr:
+    input:
+        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
+        mash     = mash_taxonomy_file
+    output:
+        sistr = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "sistr.tsv")
+    threads: 4
+    benchmark:
+        os.path.join(output_dir, "data", "benchmarks", "{sample}.sistr.txt")
+    conda: "../envs/sistr.yaml"
+    shell:
+        r"""
+        outdir=$(dirname {output.sistr})
+        mkdir -p "$outdir"
+
+        is_salmonella=$(python3 - "{input.mash}" "{wildcards.sample}" <<'PY'
+import csv
+import sys
+
+mash_tsv, sample = sys.argv[1], sys.argv[2]
+sample_key = sample + ".chromosome"
+
+with open(mash_tsv) as handle:
+    reader = csv.DictReader(handle, delimiter="\t")
+    for row in reader:
+        if row["user_genome"] != sample_key:
+            continue
+        print("1" if "g__Salmonella" in row["classification"] else "0")
+        break
+    else:
+        raise SystemExit("Sample '%s' missing from %s" % (sample, mash_tsv))
+PY
+)
+
+        if [ "$is_salmonella" != "1" ]; then
+            printf 'genome\tserovar\tserovar_antigen\tserovar_cgmlst\tcgmlst_ST\tserogroup\to_antigen\th1\th2\tqc_status\tqc_messages\n' > {output.sistr}
+            printf '{wildcards.sample}\t\t\t\t\t\t\t\t\tSKIPPED_NOT_SALMONELLA\tMASH classified sample as non-Salmonella\n' >> {output.sistr}
+            exit 0
+        fi
+
+        sistr_prefix="$outdir/sistr"
+        sistr -i {input.assembly} {wildcards.sample} \
+              -f tab \
+              -o "$sistr_prefix" \
+              --qc \
+              -t {threads}
+
+        mv "${{sistr_prefix}}.tab" {output.sistr}
         """
 
 # -------------------------------------------------
@@ -106,4 +189,3 @@ rule ectyper:
                 --verify \
                 --debug
         """        
-

@@ -41,6 +41,7 @@ groups:
   mef: "mobilelementfinder"
   ectyper: "ectyper"
   seqsero: "seqsero"
+  sistr: "sistr"
   txsscan: "txsscan"
   coverage: "coverage"
   checkm2: "checkm2"
@@ -58,6 +59,7 @@ group-components:
   ectyper: 32
   mobilelementfinder: 32
   seqsero: 32
+  sistr: 32
   txsscan: 32
   coverage: 32
   checkm2: 32
@@ -78,7 +80,8 @@ set-threads:
   checkm2: 1
   txsscan: 1
   ectyper: 1
-  seqsero: 1
+  seqsero: 4
+  sistr: 4
   mlst: 1
 
 # -----------------------------------------------------------
@@ -120,7 +123,10 @@ set-resources:
     mem_mb: 5000
     runtime: 600
   seqsero:
-    mem_mb: 2000
+    mem_mb: 4000
+    runtime: 120
+  sistr:
+    mem_mb: 4000
     runtime: 120
   mlst:
     mem_mb: 4000

@@ -38,6 +38,7 @@ rule summarize_results:
         pf_files             = expand(os.path.join(output_dir, "data", "resfinder", "{sample}", "PointFinder_results.txt"), sample=samples),
         afp_files            = expand(os.path.join(output_dir, "data", "amrfinderplus", "{sample}.afp.tsv"), sample=samples),
         seqsero_files        = expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv"), sample=samples),
+        sistr_files          = expand(os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "sistr.tsv"), sample=samples),
         mobtyper_files       = expand(os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt"), sample=samples),
         coverage_files       = expand(os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}_coverage.tsv"), sample=samples),
         mef_files            = expand(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"), sample=samples),

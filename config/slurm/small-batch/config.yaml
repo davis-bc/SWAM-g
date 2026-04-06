@@ -47,7 +47,8 @@ set-threads:
   checkm2: 1
   txsscan: 1
   ectyper: 1
-  seqsero: 1
+  seqsero: 4
+  sistr: 4
   mlst: 1
 
 # -----------------------------------------------------------
@@ -99,6 +100,9 @@ set-resources:
     mem_mb: 8000
     runtime: 600
   seqsero:
+    mem_mb: 4000
+    runtime: 120
+  sistr:
     mem_mb: 4000
     runtime: 120
 

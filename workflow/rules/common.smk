@@ -12,6 +12,7 @@ import csv
 # Load config variables
 input_dir  = config["in_dir"]
 output_dir = config["out_dir"]
+mash_taxonomy_file = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
 
 _debug_raw = config.get("debug", False)
 debug_mode = _debug_raw if isinstance(_debug_raw, bool) else str(_debug_raw).lower() in ("true", "1", "yes")

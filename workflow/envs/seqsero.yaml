@@ -4,7 +4,11 @@ channels:
   - defaults
 dependencies:
   - python=3.7
+  - seqsero2=1.3.1
   - biopython=1.73
-  - pip
-  - pip:
-    - git+https://github.com/denglab/SeqSero2.git
+  - bwa
+  - samtools
+  - blast
+  - bedtools
+  - spades
+  - salmid
