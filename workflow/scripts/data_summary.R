@@ -12,6 +12,8 @@ invisible(lapply(libraries, function(x) {
 checkm2_files        <- snakemake@input[["checkm"]]
 mash_file            <- snakemake@input[["mash"]]
 mlst_file            <- snakemake@input[["mlst"]]
+pd_file              <- snakemake@input[["pd_metadata"]]
+pd_comparator_file   <- snakemake@input[["pd_comparators"]]
 resfinder_files      <- snakemake@input[["resfinder_files"]]
 pf_files             <- snakemake@input[["pf_files"]]
 afp_files            <- snakemake@input[["afp_files"]]
@@ -213,6 +215,100 @@ mlst <- read_table(mlst_file, col_names = F, col_types = cols())
 names(mlst)[1:3] <- c("Sample", "Scheme", "Sequence_Type")
 mlst$Sample <- sub(".*/(.*)\\.fasta", "\\1", mlst$Sample)
 dlog("DONE:  MLST (", nrow(mlst), " rows)")
+
+dlog("START: PD isolate metadata")
+pd_metadata <- tryCatch(
+  read_tsv(pd_file, col_types = cols(.default = col_character())),
+  error = function(e) tibble()
+)
+
+if (!is.null(pd_metadata) && ncol(pd_metadata) > 0) {
+  pd_metadata <- pd_metadata %>%
+    rename(
+      SRR_Accession         = srr_acc,
+      BioSample_Accession   = biosample_acc,
+      PD_Target_Accession   = pd_target_acc,
+      PD_Assembly_Accession = pd_asm_acc,
+      PD_SNP_Cluster        = pd_snp_cluster,
+      PD_Taxgroup           = pd_taxgroup,
+      PD_Scientific_Name    = pd_scientific_name,
+      PD_Source_Type        = pd_source_type,
+      PD_Host               = pd_host,
+      PD_Isolation_Source   = pd_isolation_source,
+      PD_Comparator_Mode    = pd_comparator_mode,
+      PD_Comparator_Count   = pd_comparator_count,
+      PD_Lookup_Status      = pd_lookup_status,
+      PD_Lookup_Source      = pd_lookup_source,
+      PD_Lookup_Note        = pd_lookup_note
+    )
+} else {
+  pd_metadata <- tibble(
+    Sample = character(),
+    SRR_Accession = character(),
+    BioSample_Accession = character(),
+    PD_Target_Accession = character(),
+    PD_Assembly_Accession = character(),
+    PD_SNP_Cluster = character(),
+    PD_Taxgroup = character(),
+    PD_Scientific_Name = character(),
+    PD_Source_Type = character(),
+    PD_Host = character(),
+    PD_Isolation_Source = character(),
+    PD_Comparator_Mode = character(),
+    PD_Comparator_Count = character(),
+    PD_Lookup_Status = character(),
+    PD_Lookup_Source = character(),
+    PD_Lookup_Note = character()
+  )
+}
+dlog("DONE:  PD isolate metadata (", nrow(pd_metadata), " rows)")
+
+dlog("START: PD cluster comparators")
+pd_comparators <- tryCatch(
+  read_tsv(pd_comparator_file, col_types = cols(.default = col_character())),
+  error = function(e) tibble()
+)
+
+if (!is.null(pd_comparators) && ncol(pd_comparators) > 0) {
+  pd_comparators <- pd_comparators %>%
+    rename(
+      PD_Query_Target_Accession = pd_query_target_acc,
+      PD_SNP_Cluster = pd_snp_cluster,
+      PD_Taxgroup = pd_taxgroup,
+      Comparator_Rank = comparator_rank,
+      Comparator_Mode = comparator_mode,
+      Comparator_Distance = comparator_distance,
+      Comparator_Target_Accession = comparator_target_acc,
+      Comparator_BioSample_Accession = comparator_biosample_acc,
+      Comparator_Assembly_Accession = comparator_asm_acc,
+      Comparator_Run_Accession = comparator_run,
+      Comparator_Sample_Name = comparator_sample_name,
+      Comparator_Scientific_Name = comparator_scientific_name,
+      Comparator_Source_Type = comparator_source_type,
+      Comparator_Host = comparator_host,
+      Comparator_Isolation_Source = comparator_isolation_source
+    )
+} else {
+  pd_comparators <- tibble(
+    Sample = character(),
+    PD_Query_Target_Accession = character(),
+    PD_SNP_Cluster = character(),
+    PD_Taxgroup = character(),
+    Comparator_Rank = character(),
+    Comparator_Mode = character(),
+    Comparator_Distance = character(),
+    Comparator_Target_Accession = character(),
+    Comparator_BioSample_Accession = character(),
+    Comparator_Assembly_Accession = character(),
+    Comparator_Run_Accession = character(),
+    Comparator_Sample_Name = character(),
+    Comparator_Scientific_Name = character(),
+    Comparator_Source_Type = character(),
+    Comparator_Host = character(),
+    Comparator_Isolation_Source = character()
+  )
+}
+dlog("DONE:  PD cluster comparators (", nrow(pd_comparators), " rows)")
 
 ########################################################
 ###       Gather checkm2 and coverage data, assess assembly quality
@@ -791,6 +887,7 @@ dlog("DONE:  AMR/MGE contig annotation merge (", nrow(contig_map), " rows)")
 
 dlog("START: Final summary table join")
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
+              left_join(pd_metadata, by="Sample") %>%
               left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
               left_join(
                 salmonella_serotype %>%
@@ -811,6 +908,8 @@ df_names <- list(
   "AMRFinderPlus" = amrfinderplus,
   "assembly_QA" = assembly_stats,
   "MOBrecon_summary" = mobtyper,
+  "pd_isolate_metadata" = pd_metadata,
+  "pd_cluster_comparators" = pd_comparators,
   "salmonella_serotype" = salmonella_serotype_simple,
   "salmonella_seqsero2" = seqsero_simple,
   "salmonella_sistr" = sistr_simple,

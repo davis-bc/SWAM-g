@@ -14,8 +14,18 @@ input_dir  = config["in_dir"]
 output_dir = config["out_dir"]
 mash_taxonomy_file = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
 
-_debug_raw = config.get("debug", False)
-debug_mode = _debug_raw if isinstance(_debug_raw, bool) else str(_debug_raw).lower() in ("true", "1", "yes")
+def config_bool(key, default=False):
+    raw = config.get(key, default)
+    return raw if isinstance(raw, bool) else str(raw).lower() in ("true", "1", "yes")
+
+
+debug_mode = config_bool("debug", False)
+pd_lookup_enabled = config_bool("pd_lookup", False)
+pd_lookup_backend = str(config.get("pd_backend", "ftp")).strip() or "ftp"
+pd_comparator_limit = int(config.get("pd_comparator_limit", 10))
+pd_sample_metadata_tsv = config.get("pd_sample_metadata_tsv")
+pd_isolates_tsv = config.get("pd_isolates_tsv")
+pd_exceptions_tsv = config.get("pd_exceptions_tsv")
 
 # Helper: extract sample name from fastq filename
 def extract_sample_name(filename):
