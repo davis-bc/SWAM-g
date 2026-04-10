@@ -299,7 +299,7 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 |------|---------|-------|
 | AMRFinderPlus | 4.2.7 (latest) | Exact pin |
 | ECTyper | 2.0.0 (latest) | Exact pin |
-| MacSyFinder (TXSScan) | 2.1.6 (latest) | Exact pin |
+| MacSyFinder (TXSScan) | 2.1.4 | Exact pin; pinned below 2.1.6 because newer Bioconda packaging breaks `macsydata/msf_data` model install under Python 3.11 |
 | MLST | 2.25.0 | Exact pin |
 | CheckM2 | 1.1.0 (latest) | Minimum version |
 | Unicycler | ≥0.5.0 | Minimum version |

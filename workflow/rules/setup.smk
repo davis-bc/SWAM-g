@@ -14,6 +14,8 @@ rule checkm_init:
         """
         DB_DIR="dbs"
         DB="dbs/CheckM2_database/uniref100.KO.1.dmnd"
+
+        mkdir -p "$DB_DIR"
         
         if [ ! -f "$DB" ]; then
             echo "CheckM2_database not found. Downloading database..."
@@ -78,15 +80,14 @@ rule res_init:
     shell:
         """
         DB_DIR="dbs"
-        
-        cd $DB_DIR
+
+        mkdir -p "$DB_DIR"
 
         # Check and clone only if the database directories are missing
-        [ ! -d "resfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/resfinder_db/ > /dev/null 2>&1
-        [ ! -d "pointfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/pointfinder_db/ > /dev/null 2>&1
-        [ ! -d "disinfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/disinfinder_db/ > /dev/null 2>&1
+        [ ! -d "$DB_DIR/resfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/resfinder_db/ "$DB_DIR/resfinder_db" > /dev/null 2>&1
+        [ ! -d "$DB_DIR/pointfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/pointfinder_db/ "$DB_DIR/pointfinder_db" > /dev/null 2>&1
+        [ ! -d "$DB_DIR/disinfinder_db" ] && git clone https://bitbucket.org/genomicepidemiology/disinfinder_db/ "$DB_DIR/disinfinder_db" > /dev/null 2>&1
 
-        cd - > /dev/null
         touch {output}
         
         """    
@@ -107,17 +108,17 @@ rule ectyper_init:
     shell:
         """
         DB_DIR="dbs"
+        MASH_SKETCH="$DB_DIR/EnteroRef_GTDBSketch_20231003_V2.msh"
         URL="https://zenodo.org/records/13969103/files/EnteroRef_GTDBSketch_20231003_V2.msh"
-        
-        cd $DB_DIR
+
+        mkdir -p "$DB_DIR"
 
         # Check if the MASH sketch exists, download if missing
-        if [ ! -f EnteroRef_GTDBSketch_20231003_V2.msh ]; then
+        if [ ! -f "$MASH_SKETCH" ]; then
             echo "EnteroRef_GTDB MASH sketch does not exist, initializing..."
-            wget "$URL"
+            wget -O "$MASH_SKETCH" "$URL"
         fi
 
-        cd - > /dev/null
         touch {output}
         
         """
@@ -136,11 +137,14 @@ rule txsscan_init:
         os.path.join(output_dir, "data", "benchmarks", "init_txsscan.txt")
     shell:
         """
-        MSF_DB="dbs/macsyfinder/models"
+        MSF_ROOT="dbs/macsyfinder"
+        MSF_DB="$MSF_ROOT/models"
+
+        mkdir -p "$MSF_ROOT"
         
         if [ ! -d "$MSF_DB" ]; then
             echo "TXSScan models do not exist, initializing..."
-            msf_data install TXSScan --target $MSF_DB
+            macsydata install --target "$MSF_DB" TXSScan
         fi
         
         touch {output}
