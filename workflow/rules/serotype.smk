@@ -143,16 +143,22 @@ rule txsscan:
     shell:
         """
         
-        models_dir="dbs/macsyfinder/models/"
+        models_dir="dbs/macsyfinder/models"
+
+        if [ ! -d "$models_dir/TXSScan" ]; then
+            echo "TXSScan models are missing from $models_dir. Run txsscan_init on an internet-connected login/head node." >&2
+            exit 1
+        fi
         
         # find all proteins in assembly
         prodigal -i {input.assembly} -a {output.prot} -q 
         
-        # run TXSScan on protiens
-        macsyfinder --db-type unordered \
+        # run TXSScan on proteins using the pre-staged offline model bundle.
+        # Upstream TXSScan examples use ordered_replicon mode for protein FASTAs.
+        macsyfinder --db-type ordered_replicon \
                     --sequence-db {output.prot} \
                     --models TXSScan all \
-                    --models-dir $models_dir \
+                    --models-dir "$models_dir" \
                     -o $(dirname {output.sys}) \
                     --force 
         

@@ -3,6 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - macsyfinder=2.1.4
-  - python=3.11
+  - python=3.12
+  - hmmer
   - prodigal
+  - pip
+  - pip:
+      - MacSyFinder==2.1.6

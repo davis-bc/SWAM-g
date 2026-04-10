@@ -35,19 +35,27 @@ rule mob_init:
         touch(os.path.join(output_dir, "data", "mob-suite", ".mob_suite_db_initialized"))
     conda:
         "../envs/mob_suite.yaml"
+    params:
+        db_dir = "dbs/mob_suite"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "init_mobsuite.txt")
     shell:
         """
-        # Resolve the databases path within the currently active conda env.
-        # The old find-based check matched databases from *any* env (including stale
-        # ones), so if the mob_suite env was recreated with a new hash the databases
-        # would appear "found" while the new env had none — causing mob_recon to
-        # attempt a download on compute nodes (which have no internet access).
-        MOB_DB=$(python -c "import mob_suite; import os; print(os.path.join(os.path.dirname(mob_suite.__file__), 'databases'))")
-        if [ ! -d "$MOB_DB" ] || [ -z "$(ls -A "$MOB_DB" 2>/dev/null)" ]; then
-            echo "MOB-suite databases not found in current conda env, initializing..."
-            mob_init
+        MOB_DB="{params.db_dir}"
+
+        mkdir -p "$MOB_DB"
+
+        # Pre-stage the MOB-suite database in a persistent repo-level directory so
+        # compute-node jobs never fall back to the package default and attempt an
+        # automatic download without internet access.
+        if [ -z "$(find "$MOB_DB" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+            echo "MOB-suite databases not found in $MOB_DB, initializing..."
+            mob_init --database_directory "$MOB_DB"
+        fi
+
+        if [ -z "$(find "$MOB_DB" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+            echo "MOB-suite initialization did not populate $MOB_DB" >&2
+            exit 1
         fi
         
         touch {output}
@@ -144,23 +152,43 @@ rule txsscan_init:
         """
         MSF_ROOT="dbs/macsyfinder"
         MSF_DB="$MSF_ROOT/models"
+        TXSSCAN_DIR="$MSF_DB/TXSScan"
+        TXSSCAN_META="$TXSSCAN_DIR/metadata.yml"
 
-        mkdir -p "$MSF_ROOT"
-        
-        if [ ! -d "$MSF_DB/TXSScan" ]; then
-            echo "TXSScan models not found, installing..."
-            macsydata install --target "$MSF_DB" TXSScan
+        mkdir -p "$MSF_DB"
+
+        if command -v msf_data >/dev/null 2>&1; then
+            MSF_DATA_BIN=msf_data
+        elif command -v macsydata >/dev/null 2>&1; then
+            MSF_DATA_BIN=macsydata
         else
-            # MacSyFinder 2.x requires model XML version '2.0'. TXSScan-1.x models
-            # (installed by older runs) are incompatible. Detect this by checking the
-            # metadata.yml that MacSyFinder 2.x model packages include at their root.
-            meta="$MSF_DB/TXSScan/metadata.yml"
-            if ! grep -q "^vers: [2-9][.]" "$meta" 2>/dev/null; then
-                echo "TXSScan v1 models detected (incompatible with MacSyFinder 2.x), reinstalling..."
-                rm -rf "$MSF_DB"
-                mkdir -p "$MSF_ROOT"
-                macsydata install --target "$MSF_DB" TXSScan
-            fi
+            echo "Could not find msf_data or macsydata in the MacSyFinder environment" >&2
+            exit 1
+        fi
+
+        needs_install=0
+        if [ ! -d "$TXSSCAN_DIR" ]; then
+            needs_install=1
+        elif [ ! -f "$TXSSCAN_META" ]; then
+            needs_install=1
+        elif ! find "$TXSSCAN_DIR" -type f \\( -name "*.xml" -o -name "*.hmm" \\) -print -quit | grep -q .; then
+            needs_install=1
+        fi
+
+        if [ "$needs_install" -eq 1 ]; then
+            echo "Installing or refreshing TXSScan models in $MSF_DB..."
+            rm -rf "$TXSSCAN_DIR"
+            "$MSF_DATA_BIN" install --target "$MSF_DB" TXSScan
+        fi
+
+        if [ ! -f "$TXSSCAN_META" ]; then
+            echo "TXSScan metadata file missing after install: $TXSSCAN_META" >&2
+            exit 1
+        fi
+
+        if ! find "$TXSSCAN_DIR" -type f \\( -name "*.xml" -o -name "*.hmm" \\) -print -quit | grep -q .; then
+            echo "TXSScan install at $TXSSCAN_DIR is incomplete" >&2
+            exit 1
         fi
         
         touch {output}

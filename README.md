@@ -22,7 +22,7 @@
 - **macOS:** supported via conda; Apple Silicon (M-series) users may need [Rosetta 2](https://support.apple.com/en-us/102527) for some tools.
 - **Windows:** use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) with Ubuntu — install conda inside WSL and follow the Linux instructions below.
 
-> **Databases:** All reference databases required by each tool (AMRFinderPlus, MOB-suite, CheckM2, ResFinder, TXSScan, ECTyper, and SISTR) are downloaded and configured automatically on the first run. No manual database setup is required.
+> **Databases:** Reference databases and model bundles are bootstrapped by Snakemake local init rules into the repo-level `dbs/` directory. On HPC, the first bootstrap or any later refresh still needs to run from an internet-connected login/head node; downstream compute-node jobs then reuse the staged `dbs/` contents fully offline.
 
 ### Step 0. Install conda/mamba manager, Snakemake, and SRA-tools
 `SWAM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
@@ -299,7 +299,7 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 |------|---------|-------|
 | AMRFinderPlus | 4.2.7 (latest) | Exact pin |
 | ECTyper | 2.0.0 (latest) | Exact pin |
-| MacSyFinder (TXSScan) | 2.1.4 | Exact pin; pinned below 2.1.6 because newer Bioconda packaging breaks `macsydata/msf_data` model install under Python 3.11 |
+| MacSyFinder (TXSScan) | 2.1.6 | Installed via `pip` inside a Python 3.12 conda env with `hmmer`/`prodigal` from conda; required because TXSScan 1.1.4 models use 2.1 grammar that MacSyFinder 2.1.4 rejects; models are staged under `dbs/macsyfinder/models` |
 | MLST | 2.25.0 | Exact pin |
 | CheckM2 | 1.1.0 (latest) | Minimum version |
 | Unicycler | ≥0.5.0 | Minimum version |
@@ -308,7 +308,7 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 | fastp | latest | Unpinned |
 | Prodigal | latest | Unpinned |
 | ResFinder | latest | Unpinned |
-| MOB-suite | latest (pip) | Unpinned |
+| MOB-suite | latest (pip) | Unpinned; database is staged under `dbs/mob_suite` and passed explicitly to `mob_recon` for offline HPC execution |
 | MobileElementFinder | latest (pip) | Unpinned |
 | SeqSero2 | 1.3.1 | Exact pin from Bioconda; environment currently solved with `python=3.7`, `biopython=1.73` |
 | SISTR | ≥1.1.3 | Minimum version; environment currently pinned to `python=3.11`, `setuptools<81` for CLI compatibility |

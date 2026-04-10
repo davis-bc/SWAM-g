@@ -13,12 +13,14 @@ rule mobsuite:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "../envs/mob_suite.yaml"
+    params:
+        db_dir = "dbs/mob_suite"
     shell:
         """
-        
         # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags
         mob_recon --infile {input.assembly} \
-        --outdir $(dirname {output.mobtyper}) \
+        --outdir "$(dirname {output.mobtyper})" \
+        --database_directory "{params.db_dir}" \
         --unicycler_contigs \
         -n {threads} \
         --force
