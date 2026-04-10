@@ -39,10 +39,15 @@ rule mob_init:
         os.path.join(output_dir, "data", "benchmarks", "init_mobsuite.txt")
     shell:
         """
-        MOB_DB=$(find .snakemake/conda -type d -path "*/mob_suite/databases" | head -n 1)
-        if [ -z "$MOB_DB" ]; then
-        echo "mob_suite database does not exist in conda environment, initializing..."
-            mob_init > /dev/null 2>&1
+        # Resolve the databases path within the currently active conda env.
+        # The old find-based check matched databases from *any* env (including stale
+        # ones), so if the mob_suite env was recreated with a new hash the databases
+        # would appear "found" while the new env had none — causing mob_recon to
+        # attempt a download on compute nodes (which have no internet access).
+        MOB_DB=$(python -c "import mob_suite; import os; print(os.path.join(os.path.dirname(mob_suite.__file__), 'databases'))")
+        if [ ! -d "$MOB_DB" ] || [ -z "$(ls -A "$MOB_DB" 2>/dev/null)" ]; then
+            echo "MOB-suite databases not found in current conda env, initializing..."
+            mob_init
         fi
         
         touch {output}
@@ -142,9 +147,20 @@ rule txsscan_init:
 
         mkdir -p "$MSF_ROOT"
         
-        if [ ! -d "$MSF_DB" ]; then
-            echo "TXSScan models do not exist, initializing..."
+        if [ ! -d "$MSF_DB/TXSScan" ]; then
+            echo "TXSScan models not found, installing..."
             macsydata install --target "$MSF_DB" TXSScan
+        else
+            # MacSyFinder 2.x requires model XML version '2.0'. TXSScan-1.x models
+            # (installed by older runs) are incompatible. Detect this by checking the
+            # metadata.yml that MacSyFinder 2.x model packages include at their root.
+            meta="$MSF_DB/TXSScan/metadata.yml"
+            if ! grep -q "^vers: [2-9]\." "$meta" 2>/dev/null; then
+                echo "TXSScan v1 models detected (incompatible with MacSyFinder 2.x), reinstalling..."
+                rm -rf "$MSF_DB"
+                mkdir -p "$MSF_ROOT"
+                macsydata install --target "$MSF_DB" TXSScan
+            fi
         fi
         
         touch {output}
