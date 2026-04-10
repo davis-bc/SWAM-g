@@ -155,7 +155,7 @@ rule txsscan_init:
             # (installed by older runs) are incompatible. Detect this by checking the
             # metadata.yml that MacSyFinder 2.x model packages include at their root.
             meta="$MSF_DB/TXSScan/metadata.yml"
-            if ! grep -q "^vers: [2-9]\." "$meta" 2>/dev/null; then
+            if ! grep -q "^vers: [2-9][.]" "$meta" 2>/dev/null; then
                 echo "TXSScan v1 models detected (incompatible with MacSyFinder 2.x), reinstalling..."
                 rm -rf "$MSF_DB"
                 mkdir -p "$MSF_ROOT"
