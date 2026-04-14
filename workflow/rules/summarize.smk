@@ -70,8 +70,9 @@ rule summarize_results:
         txsscan_files2       = expand(os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.txt"), sample=samples),
         prodigal_files       = expand(os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"), sample=samples)
     output:
-        xlsx = os.path.join(output_dir, "SWAM-g_results.xlsx"),
-        csv  = os.path.join(output_dir, "contig_map.csv")
+        xlsx    = os.path.join(output_dir, "SWAM-g_results.xlsx"),
+        pd_xlsx = os.path.join(output_dir, "pd_isolate_metadata.xlsx"),
+        csv     = os.path.join(output_dir, "contig_map.csv")
     params:
         debug = debug_mode
     conda:

@@ -32,5 +32,6 @@ localrules: mob_init, afp_init, txsscan_init, res_init, checkm_init, ectyper_ini
 rule all:
     input:
         os.path.join(output_dir, "SWAM-g_results.xlsx"),
+        os.path.join(output_dir, "pd_isolate_metadata.xlsx"),
         os.path.join(output_dir, "contig_map.csv"),
         os.path.join(output_dir, "mashtree.nwk")

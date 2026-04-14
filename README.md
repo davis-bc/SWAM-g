@@ -228,6 +228,7 @@ Because the public PD distance tables can be extremely large for some taxgroups,
 output/
 ├── mashtree.nwk               # Quick assembly relationship sketch from mashtree
 ├── SWAM-g_results.xlsx         # Primary deliverable — multi-sheet workbook (see below)
+├── pd_isolate_metadata.xlsx    # Optional PD workbook containing isolate metadata + comparators
 ├── contig_map.csv              # Per-contig annotation map (see below)
 └── data/
     ├── amrfinderplus/          # Per-sample AMR, stress, and virulence hits ({sample}.afp.tsv)
@@ -256,16 +257,21 @@ A multi-sheet workbook collating all tool outputs. Each sheet can be used indepe
 
 | Sheet | Contents |
 |-------|----------|
-| `summary_out` | One row per sample: MASH species assignment, optional Pathogen Detection accessions / SNP-cluster / source metadata / comparator mode, MLST sequence type, consensus predicted serotype, Salmonella serotype evidence/source fields (`Salmonella_Serotype_Source`, `SeqSero2_Serotype`, `SISTR_Serovar`, `SISTR_QC_Status`, `Serotype_Agreement`), AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and TXSScan secretion systems present |
+| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, raw Salmonella serotype calls (`SeqSero2_Serotype`, `SISTR_Serovar`), `Ecoli_serotype` from ECTyper when applicable, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and deduplicated TXSScan secretion-system models present |
 | `AMRFinderPlus` | Full per-hit AMRFinderPlus output including AMR, stress, and virulence elements with contig ID, coordinates, and strand |
 | `assembly_QA` | CheckM2 completeness and contamination estimates plus mean read coverage; includes a `QA` pass/fail flag (N50 > 20 kb, total contigs < 500, coverage ≥ 30×) |
 | `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |
+| `salmonella_serotype` | Combined Salmonella serotyping table retaining the raw SeqSero2 and SISTR outputs side-by-side for MASH-called *Salmonella* samples only |
+| `ecoli_serotype` | ECTyper serotype and pathotype predictions for samples classified as *Escherichia coli* by the pipeline MASH taxonomy |
+
+### `pd_isolate_metadata.xlsx`
+
+Optional PD workbook written separately from the main results workbook.
+
+| Sheet | Contents |
+|-------|----------|
 | `pd_isolate_metadata` | Optional PD enrichment table containing resolved SRR/BioSample accessions, PD target/assembly accessions, SNP cluster, source metadata, comparator mode/count, lookup source, and status for each sample |
 | `pd_cluster_comparators` | Up to `pd_comparator_limit` live PD comparators per queried isolate, including rank, SNP distance when available, accession fields, and source environment metadata for rough source-tracking review |
-| `salmonella_serotype` | Cross-referenced Salmonella serotyping table with consensus serotype, SeqSero2 result, SISTR result, agreement flag, and scoring/QC support (populated for MASH-called *Salmonella* samples only) |
-| `salmonella_seqsero2` | SeqSero2 allele-mode serotyping output parsed from clean paired-end reads; non-Salmonella samples are represented by `SKIPPED_NOT_SALMONELLA` placeholder rows |
-| `salmonella_sistr` | SISTR serotyping output parsed from assemblies, including cgMLST/QC support fields; non-Salmonella samples are represented by `SKIPPED_NOT_SALMONELLA` placeholder rows |
-| `ecoli_serotype` | ECTyper serotype and pathotype predictions (populated for *E. coli* samples only; empty otherwise) |
 
 ### `mashtree.nwk`
 

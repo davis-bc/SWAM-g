@@ -172,15 +172,45 @@ rule txsscan:
 rule ectyper:
     input:
         symlink = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
-        ecsetup = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
+        ecsetup = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt"),
+        mash    = mash_taxonomy_file
     output:
         ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.ectyper.txt")
     conda: "../envs/ectyper.yaml"
     shell:
-        """
+        r"""
         refseq="dbs/EnteroRef_GTDBSketch_20231003_V2.msh"
+        outdir=$(dirname {output.ect})
+
+        mkdir -p "$outdir"
+
+        is_ecoli=$(python3 - "{input.mash}" "{wildcards.sample}" <<'PY'
+import csv
+import sys
+
+mash_tsv, sample = sys.argv[1], sys.argv[2]
+sample_key = sample + ".chromosome"
+
+with open(mash_tsv) as handle:
+    reader = csv.DictReader(handle, delimiter="\t")
+    for row in reader:
+        if row["user_genome"] != sample_key:
+            continue
+        classification = row["classification"]
+        print("1" if "s__Escherichia coli" in classification else "0")
+        break
+    else:
+        raise SystemExit("Sample '%s' missing from %s" % (sample, mash_tsv))
+PY
+)
+
+        if [ "$is_ecoli" != "1" ]; then
+            printf 'Name\tSpecies\tQC\tWarnings\n' > {output.ect}
+            printf '{wildcards.sample}\tMASH non-E. coli skip\tSKIPPED_NOT_ECOLI\tPipeline MASH taxonomy did not classify this sample as Escherichia coli\n' >> {output.ect}
+            exit 0
+        fi
 
         # Copy sketch to local node scratch to avoid I/O contention on the shared
         # filesystem when many ECTyper jobs run simultaneously in a group job.
@@ -188,10 +218,9 @@ rule ectyper:
         cp "$refseq" "$LOCAL_MSH"
 
         ectyper -i {input.symlink} \
-                -o $(dirname {output.ect}) \
+                -o "$outdir" \
                 --pathotype \
                 -r "$LOCAL_MSH" \
                 --cores {threads} \
-                --verify \
                 --debug
         """        

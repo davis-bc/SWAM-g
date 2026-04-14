@@ -31,8 +31,9 @@ prodigal_files       <- snakemake@input[["prodigal_files"]]
 
 # Output files
 
-out_file1 <- snakemake@output[[1]]
-out_file2 <- snakemake@output[[2]]
+out_file1 <- snakemake@output[["xlsx"]]
+out_file2 <- snakemake@output[["pd_xlsx"]]
+out_file3 <- snakemake@output[["csv"]]
 
 # Debug mode
 debug_mode <- isTRUE(snakemake@params[["debug"]]) ||
@@ -207,7 +208,10 @@ pick_salmonella_consensus <- function(seqsero_identification, seqsero_serotype, 
 dlog("START: MASH taxonomy")
 gtdbtk <- read_tsv(mash_file, col_types = cols())
 gtdbtk$Sample <- gsub("\\.chromosome$", "", gtdbtk$user_genome)
-gtdbtk$Species <- sub(".*s__", "", gtdbtk$classification)
+gtdbtk$Species <- gtdbtk$classification %>%
+  sub(".*s__", "", .) %>%
+  str_replace_all('^"+|"+$', "") %>%
+  normalize_empty()
 dlog("DONE:  MASH taxonomy (", nrow(gtdbtk), " rows)")
 
 dlog("START: MLST")
@@ -487,7 +491,24 @@ salmonella_serotype <- gtdbtk %>%
   )
 
 salmonella_serotype_simple <- salmonella_serotype %>%
-  relocate(Sample, Species, Predicted_Serotype, Salmonella_Serotype_Source, Serotype_Agreement)
+  transmute(
+    Sample,
+    Species,
+    SeqSero2_Identification,
+    SeqSero2_Antigenic_Profile,
+    SeqSero2_Serotype,
+    SeqSero2_Status,
+    SISTR_Serovar,
+    SISTR_Serovar_Antigen,
+    SISTR_Serovar_CGMLST,
+    SISTR_cgMLST_ST,
+    SISTR_Serogroup,
+    SISTR_O_Antigen,
+    SISTR_H1,
+    SISTR_H2,
+    SISTR_QC_Status,
+    SISTR_QC_Messages
+  )
 
 dlog("START: ECTyper (E. coli serotyping)")
 ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
@@ -501,11 +522,24 @@ ectyper <- do.call(bind_rows, lapply(ectyper_files, function(f) {
 }))
 
 ectyper_simple <- if (!is.null(ectyper) && ncol(ectyper) > 0) {
-  ectyper %>% filter(grepl("Escherichia", Species)) %>% relocate(Sample) %>% select(-Name)
+  ectyper %>%
+    rename(ECTyper_Species = Species) %>%
+    left_join(gtdbtk %>% select(Sample, Species), by = "Sample") %>%
+    filter(Species == "Escherichia coli") %>%
+    filter(coalesce(QC, "REPORTED") != "SKIPPED_NOT_ECOLI") %>%
+    relocate(Sample, Species, ECTyper_Species) %>%
+    select(-any_of("Name"))
 } else {
   tibble()
 }
 dlog("DONE:  ECTyper (", nrow(ectyper_simple), " E. coli samples)")
+
+ecoli_summary <- if (!is.null(ectyper_simple) && ncol(ectyper_simple) > 0 && "Serotype" %in% names(ectyper_simple)) {
+  ectyper_simple %>%
+    transmute(Sample, Ecoli_serotype = normalize_empty(Serotype))
+} else {
+  tibble(Sample = character(), Ecoli_serotype = character())
+}
 
 ###############################################
 ###       Gather MOB-suite plasmid data
@@ -774,6 +808,7 @@ process_file <- function(file_path) {
   valid_models <- systems_info %>%
     filter(wholeness > 0.50) %>% 
     pull(model)
+  valid_models <- unique(valid_models)
   
   # Return a dataframe for this sample
   data.frame(
@@ -887,20 +922,17 @@ dlog("DONE:  AMR/MGE contig annotation merge (", nrow(contig_map), " rows)")
 
 dlog("START: Final summary table join")
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
-              left_join(pd_metadata, by="Sample") %>%
               left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
-              left_join(
-                salmonella_serotype %>%
-                  select(Sample, Predicted_Serotype, Salmonella_Serotype_Source,
-                         SeqSero2_Serotype, SISTR_Serovar, SISTR_QC_Status, Serotype_Agreement),
-                by="Sample"
-              ) %>%
+              left_join(seqsero %>% select(Sample, SeqSero2_Serotype), by="Sample") %>%
+              left_join(sistr %>% select(Sample, SISTR_Serovar), by="Sample") %>%
+              left_join(ecoli_summary, by="Sample") %>%
               left_join(afp_genotype, by="Sample") %>%
               left_join(resfinder_genotype, by="Sample") %>%
               left_join(phenotype, by="Sample") %>%
               left_join(pf %>% select(Sample, Pointfinder_Mutation), by="Sample") %>%
               left_join(mobtyper_summary, by="Sample") %>%
-              left_join(txsscan_mod, by="Sample")
+              left_join(txsscan_mod, by="Sample") %>%
+              relocate(Ecoli_serotype, .after = SISTR_Serovar)
 dlog("DONE:  Final summary table (", nrow(summary), " samples)")
 
 df_names <- list(
@@ -908,12 +940,13 @@ df_names <- list(
   "AMRFinderPlus" = amrfinderplus,
   "assembly_QA" = assembly_stats,
   "MOBrecon_summary" = mobtyper,
-  "pd_isolate_metadata" = pd_metadata,
-  "pd_cluster_comparators" = pd_comparators,
   "salmonella_serotype" = salmonella_serotype_simple,
-  "salmonella_seqsero2" = seqsero_simple,
-  "salmonella_sistr" = sistr_simple,
   "ecoli_serotype" = ectyper_simple
+)
+
+pd_df_names <- list(
+  "pd_isolate_metadata" = pd_metadata,
+  "pd_cluster_comparators" = pd_comparators
 )
 
 
@@ -924,5 +957,6 @@ df_names <- list(
 dlog("START: Writing outputs")
 
 write_xlsx(df_names, out_file1)
-write.csv(contig_map, out_file2, row.names=FALSE)
+write_xlsx(pd_df_names, out_file2)
+write.csv(contig_map, out_file3, row.names=FALSE)
 dlog("DONE:  Outputs written — data_summary.R complete")
