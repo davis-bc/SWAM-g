@@ -77,7 +77,7 @@ Both methods are gated by the run-level MASH taxonomy table. If a sample is not 
 ### Step 3. Tune resources (optional)
 All per-rule resource allocations are defined in the profile config under `set-resources` and `set-threads`. Edit the appropriate profile file to adjust memory or runtime for any rule — no changes to `.smk` files are needed.
 
-For `unicylcer`, the profile `mem_mb` value is now forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
+For `unicylcer`, the profile `mem_mb` value is forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
 
 For example, to give `unicylcer` more RAM in the large-batch profile:
 ```yaml

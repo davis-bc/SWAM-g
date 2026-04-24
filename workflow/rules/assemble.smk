@@ -96,8 +96,8 @@ rule unicylcer:
         echo "[swamg-host] $(hostname)"
         echo "[swamg-started-at] $started_at"
 
-        # Forward the Snakemake memory request to SPAdes explicitly because some
-        # Slurm clusters expose total node RAM instead of the job cgroup limit.
+        # Unicycler 0.5.x renamed the SPAdes passthrough flag from
+        # --spades_opts to --spades_options.
         spades_mem_gb=$(( ({resources.mem_mb} + 1023) / 1024 ))
         echo "[swamg-threads] {threads}"
         echo "[swamg-mem-mb] {resources.mem_mb}"
@@ -107,7 +107,7 @@ rule unicylcer:
                   -2 {input.r2_clean} \
                   -o $(dirname {output.unicycler}) \
                   -t {threads} \
-                  --spades_opts "-m $spades_mem_gb" \
+                  --spades_options "-m $spades_mem_gb" \
                   --keep 0
 
         trap - ERR
