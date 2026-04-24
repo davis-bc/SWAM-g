@@ -64,7 +64,7 @@ rule unicylcer:
         r1_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
         r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz")
     output:
-        unicycler = protected(os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta"))
+        unicycler = os.path.join(output_dir, "data", "unicycler", "{sample}", "assembly.fasta")
     log:
         os.path.join(output_dir, "logs", "unicylcer", "{sample}.log")
     benchmark:
