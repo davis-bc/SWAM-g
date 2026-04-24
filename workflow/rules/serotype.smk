@@ -28,12 +28,38 @@ rule seqsero:
         mash     = mash_taxonomy_file
     output:
         sq2 = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv")
+    log:
+        os.path.join(output_dir, "logs", "seqsero", "{sample}.log")
     threads: 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.seqsero2.txt")
     conda: "../envs/seqsero.yaml"
     shell:
         r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] seqsero"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] seqsero"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         outdir=$(dirname {output.sq2})
         mkdir -p "$outdir"
 
@@ -59,6 +85,10 @@ PY
         if [ "$is_salmonella" != "1" ]; then
             printf 'Sample name\tOutput directory\tPredicted identification\tPredicted antigenic profile\tPredicted serotype\tWorkflow status\n' > {output.sq2}
             printf '{wildcards.sample}\t%s\tMASH non-Salmonella skip\t\t\tSKIPPED_NOT_SALMONELLA\n' "$outdir" >> {output.sq2}
+            trap - ERR
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] SKIPPED"
+            echo "[swamg-skip-reason] NOT_SALMONELLA"
             exit 0
         fi
 
@@ -68,6 +98,10 @@ PY
                             -i {input.r1_clean} {input.r2_clean} \
                             -d "$outdir" \
                             -n {wildcards.sample}
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 
@@ -81,12 +115,38 @@ rule sistr:
         mash     = mash_taxonomy_file
     output:
         sistr = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "sistr.tsv")
+    log:
+        os.path.join(output_dir, "logs", "sistr", "{sample}.log")
     threads: 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.sistr.txt")
     conda: "../envs/sistr.yaml"
     shell:
         r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] sistr"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] sistr"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         outdir=$(dirname {output.sistr})
         mkdir -p "$outdir"
 
@@ -112,6 +172,10 @@ PY
         if [ "$is_salmonella" != "1" ]; then
             printf 'genome\tserovar\tserovar_antigen\tserovar_cgmlst\tcgmlst_ST\tserogroup\to_antigen\th1\th2\tqc_status\tqc_messages\n' > {output.sistr}
             printf '{wildcards.sample}\t\t\t\t\t\t\t\t\tSKIPPED_NOT_SALMONELLA\tMASH classified sample as non-Salmonella\n' >> {output.sistr}
+            trap - ERR
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] SKIPPED"
+            echo "[swamg-skip-reason] NOT_SALMONELLA"
             exit 0
         fi
 
@@ -123,6 +187,10 @@ PY
               -t {threads}
 
         mv "${{sistr_prefix}}.tab" {output.sistr}
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 # -------------------------------------------------
@@ -137,12 +205,37 @@ rule txsscan:
         prot = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"),
         sys  = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"),
         mods = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.txt")
+    log:
+        os.path.join(output_dir, "logs", "txsscan", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.txsscan.txt")
     conda: "../envs/macsyfinder.yaml"
     shell:
-        """
-        
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] txsscan"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] txsscan"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         models_dir="dbs/macsyfinder/models"
 
         if [ ! -d "$models_dir/TXSScan" ]; then
@@ -161,7 +254,10 @@ rule txsscan:
                     --models-dir "$models_dir" \
                     -o $(dirname {output.sys}) \
                     --force 
-        
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 
@@ -176,11 +272,37 @@ rule ectyper:
         mash    = mash_taxonomy_file
     output:
         ect = os.path.join(output_dir, "data", "serotype", "E.coli", "{sample}", "output.tsv")
+    log:
+        os.path.join(output_dir, "logs", "ectyper", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.ectyper.txt")
     conda: "../envs/ectyper.yaml"
     shell:
         r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] ectyper"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] ectyper"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         refseq="dbs/EnteroRef_GTDBSketch_20231003_V2.msh"
         outdir=$(dirname {output.ect})
 
@@ -209,6 +331,10 @@ PY
         if [ "$is_ecoli" != "1" ]; then
             printf 'Name\tSpecies\tQC\tWarnings\n' > {output.ect}
             printf '{wildcards.sample}\tMASH non-E. coli skip\tSKIPPED_NOT_ECOLI\tPipeline MASH taxonomy did not classify this sample as Escherichia coli\n' >> {output.ect}
+            trap - ERR
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] SKIPPED"
+            echo "[swamg-skip-reason] NOT_ECOLI"
             exit 0
         fi
 
@@ -223,4 +349,8 @@ PY
                 -r "$LOCAL_MSH" \
                 --cores {threads} \
                 --debug
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """        

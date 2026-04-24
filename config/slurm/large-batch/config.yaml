@@ -4,6 +4,8 @@
 # Sample-parallel rules are batched into group jobs of 32 samples each.
 # Resources are sized per-sample; Slurm receives the sum across all samples
 # in a batch job (e.g. 32 samples × 2000 MB = 64 GB for one mobsuite job).
+# On new clusters with smaller node sizes, reduce group-components or use the
+# resilient profile before raising per-rule memory aggressively.
 #
 # Usage: snakemake --profile config/slurm/large-batch ...
 
@@ -96,7 +98,7 @@ set-resources:
     mem_mb: 10000
     runtime: 60
   unicylcer:
-    mem_mb: 150000
+    mem_mb: 150000          # also forwarded to SPAdes as an explicit -m cap
     runtime: 8640
   coverage:
     mem_mb: 4000             # × 32 = 128 GB per batch job

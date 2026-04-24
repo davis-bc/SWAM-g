@@ -1,8 +1,9 @@
 # config/slurm/config.yaml
 #
-# NOTE: Two purpose-built profiles are now available and preferred:
+# NOTE: Three purpose-built profiles are now available and preferred:
 #   config/slurm/large-batch/  — use for ≥50 samples (groups of 32)
 #   config/slurm/small-batch/  — use for <50 samples (individual jobs)
+#   config/slurm/resilient/    — use for busy/flaky clusters (groups of 4, keep-going)
 #
 # This file is retained as a general-purpose fallback. All resource tuning
 # should be done in the profile configs above, not in the rule .smk files.

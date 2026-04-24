@@ -10,13 +10,39 @@ rule mobsuite:
         mobtyper = os.path.join(output_dir, "data", "mob-suite", "{sample}", "mobtyper_results.txt"),
         blast    = os.path.join(output_dir, "data", "mob-suite", "{sample}", "biomarkers.blast.txt"),
         c_report = os.path.join(output_dir, "data", "mob-suite", "{sample}", "contig_report.txt")
+    log:
+        os.path.join(output_dir, "logs", "mobsuite", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mobsuite.txt")
     conda: "../envs/mob_suite.yaml"
     params:
         db_dir = "dbs/mob_suite"
     shell:
-        """
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] mobsuite"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] mobsuite"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         # run mob_recon to reconstruct and type plasmids leveraging unicycler circularity flags
         mob_recon --infile {input.assembly} \
         --outdir "$(dirname {output.mobtyper})" \
@@ -33,7 +59,10 @@ rule mobsuite:
         if [ ! -f {output.blast} ]; then
             echo "# No plasmids detected - writing dummy file" > {output.blast}
         fi
-        
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 # -------------------------------------------------------------------------
@@ -63,14 +92,39 @@ rule amrfinderplus:
         organism_map = os.path.join(output_dir, "data", "amrfinderplus", "amrfinder_organism.tsv")
     output:
         afp = os.path.join(output_dir, "data", "amrfinderplus", "{sample}.afp.tsv")
+    log:
+        os.path.join(output_dir, "logs", "amrfinderplus", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.afp.txt")
     conda: "../envs/amrfinder.yaml"
     params:
         organism = lambda wildcards: amrfinder_organism_map.get(wildcards.sample, "Escherichia")
     shell:
-        """
-        
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] amrfinderplus"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] amrfinderplus"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         # annotate AMR
         amrfinder -n {input.assembly} --plus \
         --name {wildcards.sample} \
@@ -79,7 +133,9 @@ rule amrfinderplus:
         -o {output.afp} \
         -i 0.8 
 
-       
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 # ------------------------------------
@@ -110,14 +166,39 @@ rule resfinder:
     output:
         results_dir = os.path.join(output_dir, "data", "resfinder", "{sample}", "ResFinder_results_tab.txt"),
         pf_result   = os.path.join(output_dir, "data", "resfinder", "{sample}", "PointFinder_results.txt")
+    log:
+        os.path.join(output_dir, "logs", "resfinder", "{sample}.log")
     params:
         species = lambda wildcards: resfinder_species_map.get(wildcards.sample, "Other")
     conda: "../envs/resfinder.yaml"
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.resfinder.txt")
     shell:
-        """
-        
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] resfinder"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] resfinder"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         db_res="dbs/resfinder_db"
         db_pt="dbs/pointfinder_db"
         db_dis="dbs/disinfinder_db"
@@ -140,7 +221,10 @@ rule resfinder:
         if [ ! -f {output.pf_result} ]; then
             echo "# No point mutations detected - writing dummy file" > {output.pf_result}
         fi
-        
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 # ------------------------------------------------------
@@ -153,6 +237,8 @@ rule mef:
     output:
         mef        = os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.csv"),
         temp_fasta = temp(os.path.join(output_dir, "data", "mobileelementfinder", "{sample}", "{sample}.tmp.fasta"))
+    log:
+        os.path.join(output_dir, "logs", "mef", "{sample}.log")
     resources:
         mef_slots = 1
     conda: "../envs/mobileelementfinder.yaml"
@@ -161,12 +247,38 @@ rule mef:
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mef.txt")
     shell:
-        """
-        
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] mef"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] mef"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         # Preprocess FASTA headers into a temporary file
         sed -E 's/^(>[^ ]+).*/\\1/' {input.assembly} > {output.temp_fasta}
 
         # Run mefinder on the temporary FASTA file
         mefinder find -c {output.temp_fasta} $(dirname {output.mef})/{wildcards.sample} --temp-dir {params.temp_dir}
-        
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """

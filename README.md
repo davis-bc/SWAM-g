@@ -48,14 +48,15 @@ cd /pathto/workspace
 git clone https://github.com/davis-bc/SWAM-g
 ```
 ### Step 2. Configure slurm profile and rule resources
-`SWAM-g` was constructed and tested on an HPC cluster managed by a Slurm scheduler. Two Slurm profiles are provided — choose based on the number of samples in your run:
+`SWAM-g` was constructed and tested on HPC clusters managed by a Slurm scheduler. Three Slurm profiles are provided:
 
 | Profile | Recommended for | Behavior |
 |---------|----------------|----------|
 | `config/slurm/large-batch` | **≥50 samples** | Annotation rules are batched 32 samples per Slurm job; Slurm receives the summed resources across all samples in a batch |
 | `config/slurm/small-batch` | **<50 samples** | Each sample runs as its own individual Slurm job with per-job memory headroom |
+| `config/slurm/resilient` | **Busy / flaky clusters** | Keeps going past independent failures, retries transient job hiccups, shows failed logs, and limits grouped downstream jobs to 4 samples instead of 32 |
 
-Edit the `slurm_account` and `slurm_partition` fields in **both** profile configs to match your HPC environment. All resource allocation (`mem_mb`, `runtime`, `threads`) is controlled exclusively in the profile YAML — no edits to rule files are needed.
+Edit the `slurm_account` and `slurm_partition` fields in whichever Slurm profile configs you plan to use. All resource allocation (`mem_mb`, `runtime`, `threads`) is controlled exclusively in the profile YAML — no edits to rule files are needed.
 
 ```yaml
 default-resources:
@@ -76,6 +77,8 @@ Both methods are gated by the run-level MASH taxonomy table. If a sample is not 
 ### Step 3. Tune resources (optional)
 All per-rule resource allocations are defined in the profile config under `set-resources` and `set-threads`. Edit the appropriate profile file to adjust memory or runtime for any rule — no changes to `.smk` files are needed.
 
+For `unicylcer`, the profile `mem_mb` value is now forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
+
 For example, to give `unicylcer` more RAM in the large-batch profile:
 ```yaml
 # config/slurm/large-batch/config.yaml
@@ -84,6 +87,12 @@ set-resources:
     mem_mb: 200000
     runtime: 8640
 ```
+
+For very large runs on a new cluster, tune in this order:
+
+1. Increase `unicylcer.mem_mb` if assembly is the first failing step.
+2. If grouped downstream jobs no longer fit node memory, reduce `group-components` or switch to `config/slurm/resilient/`.
+3. Re-run a dry-run before submitting the full batch.
 
 ### Step 4. Download test data
 To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
@@ -94,6 +103,8 @@ cd /pathto/directory/input
 fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 `SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
+
+If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, the workflow will continue with the paired subset only. On large production runs, fix or remove unmatched FASTQs before submission so the paired sample count matches expectations.
 
 > **Testing locally first is recommended.** See the **Note** at the end of this section for how to run these three samples on a local workstation before submitting a full HPC run.
 
@@ -128,6 +139,40 @@ Then submit as:
 ```bash
 sbatch run_swam-g.sh
 ```
+
+### Resilient HPC mode for busy or flaky clusters
+If your Slurm environment has long queue times, intermittent node hiccups, or vague downstream failures, use the dedicated resilient entrypoint instead of the strict one-shot profile call:
+
+```bash
+bash run_swam-g_resilient.sh /path/to/input /path/to/output
+```
+
+This wrapper uses `config/slurm/resilient/`, which enables:
+
+- `--keep-going`
+- `--rerun-incomplete`
+- `--restart-times 2`
+- `--latency-wait 60`
+- `--show-failed-logs`
+
+It also writes structured per-sample rule logs under `output/logs/` and a two-level post-run report under `output/run_status/`:
+
+- `sample_status.tsv` — one row per sample, with overall state and furthest completed rule
+- `sample_rule_status.tsv` — detailed sample-by-rule drill-down with likely cause, suggested action, and log path
+- `run_report.txt` — short human-readable overview
+- `retry_samples.txt` / `review_samples.txt` / `completed_samples.txt` — sample lists for triage
+- `retry_manifest.tsv` / `review_manifest.tsv` / `completed_manifest.tsv` — FASTQ manifests for reruns, pruning, or downstream staging
+
+To materialize a retry or review subset into a fresh flat input directory, use:
+
+```bash
+python3 workflow/scripts/stage_sample_subset.py \
+    --manifest output/run_status/retry_manifest.tsv \
+    --dest /path/to/retry_input \
+    --mode symlink
+```
+
+That helper creates a new flat directory of symlinks (or copies, if `--mode copy` is used), which can then be re-run through `SWAM-g` as a smaller follow-up batch.
 
 > **Troubleshooting:** Add `debug=true` to `--config` to enable verbose step-by-step logging in `data_summary.R`. Each parsing section will print a `[DEBUG]` message with row counts to the rule log, making it easy to identify where a failure or slowdown occurs:
 > ```bash

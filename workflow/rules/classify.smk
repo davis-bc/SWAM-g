@@ -8,14 +8,44 @@ rule mash_classify:
         msh_ready = os.path.join(output_dir, "data", "serotype", "E.coli", ".ectyper_setup_done.txt")
     output:
         mash_result = os.path.join(output_dir, "data", "mash", "{sample}.mash_screen.tsv")
+    log:
+        os.path.join(output_dir, "logs", "mash_classify", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.mash_classify.txt")
     conda: "../envs/mash.yaml"
     shell:
-        """
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] mash_classify"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] mash_classify"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         mkdir -p $(dirname {output.mash_result})
         mash screen -p {threads} -w dbs/EnteroRef_GTDBSketch_20231003_V2.msh {input.assembly} \
             | sort -grk1,1 > {output.mash_result}
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
 
 # -------------------------------------------------------
@@ -63,11 +93,37 @@ rule checkm2:
         checkm =  os.path.join(output_dir, "data", "checkm2", ".checkm_initialized")
     output:
         checkm = os.path.join(output_dir, "data", "checkm2", "{sample}", "quality_report.tsv")
+    log:
+        os.path.join(output_dir, "logs", "checkm2", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.checkm2.txt")
     conda: "../envs/checkm2.yaml"
     shell:
-        """
+        r"""
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        exec > "{log}" 2>&1
+        set -euo pipefail
+
+        started_at=$(date -Is)
+        on_error() {{
+            rc=$?
+            echo "[swamg-rule] checkm2"
+            echo "[swamg-sample] {wildcards.sample}"
+            echo "[swamg-host] $(hostname)"
+            echo "[swamg-started-at] $started_at"
+            echo "[swamg-finished-at] $(date -Is)"
+            echo "[swamg-status] FAILED"
+            echo "[swamg-exit-code] $rc"
+            exit $rc
+        }}
+        trap 'on_error' ERR
+
+        echo "[swamg-rule] checkm2"
+        echo "[swamg-sample] {wildcards.sample}"
+        echo "[swamg-host] $(hostname)"
+        echo "[swamg-started-at] $started_at"
+
         DB="dbs/CheckM2_database/uniref100.KO.1.dmnd"
         
         #tmp="$(dirname {output.checkm})/tmp"
@@ -84,7 +140,8 @@ rule checkm2:
         --threads {threads} \
         --database_path "$DB" \
         --force 
-        
+
+        trap - ERR
+        echo "[swamg-finished-at] $(date -Is)"
+        echo "[swamg-status] SUCCESS"
         """
-
-

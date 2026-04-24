@@ -62,7 +62,7 @@ set-resources:
     mem_mb: 10000
     runtime: 60
   unicylcer:
-    mem_mb: 150000
+    mem_mb: 150000          # also forwarded to SPAdes as an explicit -m cap
     runtime: 8640
   coverage:
     mem_mb: 8000
