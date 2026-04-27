@@ -1,9 +1,9 @@
 # Default Slurm profile.
 #
-# This is the single supported HPC profile for SWAM-g. Most per-rule resources
-# below were retuned from benchmark measurements in
-# swam-g-test-benchamrks.txt. Explicit walltime strings are used so clusters do
-# not disagree about whether bare numeric runtimes mean minutes or seconds.
+#  This is the single supported HPC profile for SWAM-g. Per-rule resources
+#  below were retuned from benchmark measurements.
+#  Explicit walltime strings are used so clusters do
+#  not disagree about whether bare numeric runtimes mean minutes or seconds.
 
 executor: slurm
 
@@ -22,12 +22,14 @@ quiet:
   - rules
 
 default-resources:
-  slurm_account: "nrsaamr"
-  slurm_partition: "'ord'"
+  slurm_account: ""
+  slurm_partition: ""
   mem_mb: 2000
   runtime: "2h"
 
+# group: "rule"
 groups:
+  fastp: "fastp"
   coverage: "coverage"
   mobsuite: "mobsuite"
   amrfinderplus: "amrfinderplus"
@@ -39,9 +41,9 @@ groups:
   seqsero: "seqsero"
   sistr: "sistr"
 
-# Grouped downstream rules are capped at 4 samples per job to reduce blast
-# radius when a cluster node fails or a grouped step is underprovisioned.
+# group: n samples per group 
 group-components:
+  fastp: 4
   coverage: 4
   mobsuite: 4
   amrfinderplus: 4
@@ -53,6 +55,8 @@ group-components:
   seqsero: 4
   sistr: 4
 
+# Note. Resources for grouped rules are summed
+# 1 thread x 4 samples/group = 4 threads in group job
 set-threads:
   fastp: 1
   unicylcer: 32
@@ -62,11 +66,11 @@ set-threads:
   amrfinderplus: 1
   resfinder: 1
   mef: 1
-  checkm2: 1
+  checkm2: 32
   txsscan: 1
   ectyper: 1
-  seqsero: 4
-  sistr: 4
+  seqsero: 1
+  sistr: 1
   mlst: 1
 
 set-resources:
