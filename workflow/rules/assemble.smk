@@ -2,8 +2,10 @@
 #   Assembly retry resource scaling
 # ------------------------------------------
 
-UNICYCLER_MEM_MB_BY_ATTEMPT = (150000, 200000, 250000)
-UNICYCLER_RUNTIME_BY_ATTEMPT = ("6d", "7d", "8d")
+# Benchmark-guided retry tiers: the tagged benchmark set peaked just below
+# 30 GB RSS for Unicycler, so start near 40 GB and scale upward on retries.
+UNICYCLER_MEM_MB_BY_ATTEMPT = (40000, 60000, 80000)
+UNICYCLER_RUNTIME_BY_ATTEMPT = ("4h", "6h", "8h")
 
 
 def unicycler_mem_mb(_, attempt):

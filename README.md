@@ -47,15 +47,8 @@ Replace "/pathto/workspace" with where you want `SWAM-g` to live.
 cd /pathto/workspace
 git clone https://github.com/davis-bc/SWAM-g
 ```
-### Step 2. Configure slurm profile and rule resources
-`SWAM-g` uses one Slurm profile at `config/slurm/`. It keeps the resilient behavior that proved most useful on busy clusters:
-
-- `keep-going`, `rerun-incomplete`, and `restart-times: 2`
-- grouped downstream rules capped at 4 samples per Slurm job
-- quiet rule-level Snakemake output so the driver log stays readable
-- explicit walltime strings such as `1h`, `10h`, and `6d` instead of bare integers
-
-Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`. Most per-rule resource allocation (`mem_mb`, `runtime`, `threads`) is controlled there under `set-resources` and `set-threads`.
+### Step 2. Configure your Slurm credentials
+Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`.
 
 ```yaml
 default-resources:
@@ -65,42 +58,7 @@ default-resources:
 
 More information on Snakemake configurations for different compute environments can be found in the [Snakemake docs](https://snakemake.readthedocs.io/en/stable/).
 
-### Salmonella serotyping behavior
-Salmonella serotyping now uses **two complementary methods**:
-
-1. **SeqSero2 allele mode** on the `fastp`-cleaned paired-end reads for targeted antigen assembly and serotype prediction
-2. **SISTR** on the draft assembly for antigen/cgMLST-based confirmation
-
-Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, the workflow writes a small placeholder TSV for the expected output path and skips the serotyping runtime for that sample. The final workbook cross-references both methods and reports a consensus serotype, preferring the cleaner interpretable result while preserving agreement and QC context.
-
-### Step 3. Tune resources (optional)
-Most per-rule resource allocations are defined in `config/slurm/config.yaml` under `set-resources` and `set-threads`.
-
-For `unicylcer`, the requested `mem_mb` value is forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
-
-For example, to give `resfinder` more walltime:
-```yaml
-# config/slurm/config.yaml
-set-resources:
-  resfinder:
-    mem_mb: 4000
-    runtime: "12h"
-```
-
-Assembly retries scale automatically in `workflow/rules/assemble.smk`:
-
-1. attempt 1: `150000 MB`, `6d`
-2. attempt 2: `200000 MB`, `7d`
-3. attempt 3: `250000 MB`, `8d`
-
-For large runs on a new cluster, tune in this order:
-
-1. Increase `unicylcer.mem_mb` if assembly is the first failing step.
-2. If assemblies still OOM after the automatic retries, raise the retry ceilings in `workflow/rules/assemble.smk`.
-3. If grouped downstream jobs no longer fit node memory, reduce `group-components` in `config/slurm/config.yaml`.
-4. Re-run a dry-run before submitting the full batch.
-
-### Step 4. Download test data
+### Step 3. Download test data
 To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
 
 ```bash
@@ -110,11 +68,7 @@ fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 `SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
-If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, the workflow will continue with the paired subset only. On large production runs, fix or remove unmatched FASTQs before submission so the paired sample count matches expectations.
-
-> **Testing locally first is recommended.** See the **Note** at the end of this section for how to run these three samples on a local workstation before submitting a full HPC run.
-
-### Step 5. Run the pipeline on HPC
+### Step 4. Run the pipeline on HPC
 The following is an example `submit-swam-g.sh` driver script for executing `SWAM-g` via Slurm.
 
 Replace "/pathto/" placeholders with appropriate paths.
@@ -142,19 +96,43 @@ Then submit as:
 sbatch submit-swam-g.sh
 ```
 
-The repository entrypoint `run_swam-g.sh` uses `config/slurm/` automatically. It writes structured per-sample rule logs under `output/logs/` and a concise run-status bundle under `output/logs/run_status/`:
+## Notes
 
-- `run_report.txt` — short human-readable overview
-- `sample_rule_status.tsv` — detailed sample-by-rule drill-down with likely cause, suggested action, and log path
+### Resource tuning
+The default Slurm profile in `config/slurm/config.yaml` has been retuned from the benchmark file `swam-g-test-benchamrks.txt`.
 
-> **Troubleshooting:** Add `debug=true` to `--config` to enable verbose step-by-step logging in `data_summary.R`. Each parsing section will print a `[DEBUG]` message with row counts to the rule log, making it easy to identify where a failure or slowdown occurs:
-> ```bash
-> snakemake --profile config/slurm/ \
->           --config in_dir="$input" out_dir="$output" debug=true \
->           --local-cores 1 --forcerun summarize_results
-> ```
+For `unicylcer`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
 
-### Note. Running on a local workstation
+1. attempt 1: `40000 MB`, `4h`
+2. attempt 2: `60000 MB`, `6h`
+3. attempt 3: `80000 MB`, `8h`
+
+If assembly still fails first, raise those retry tiers before broadly increasing other rule allocations.
+
+### Salmonella serotyping behavior
+Salmonella serotyping uses two complementary methods:
+
+1. **SeqSero2 allele mode** on the `fastp`-cleaned paired-end reads
+2. **SISTR** on the draft assembly
+
+Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, SWAM-g writes the expected placeholder TSV and skips the serotyping runtime for that sample.
+
+### Run outputs and troubleshooting
+The HPC entrypoint `run_swam-g.sh` writes:
+
+- `output/logs/run_status/run_report.txt`
+- `output/logs/run_status/sample_rule_status.tsv`
+
+If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, SWAM-g will continue with the paired subset only. Fix or remove unmatched FASTQs before a production run.
+
+For verbose R-summary logging, add `debug=true` to `--config`, for example:
+```bash
+snakemake --profile config/slurm/ \
+          --config in_dir="$input" out_dir="$output" debug=true \
+          --local-cores 1 --forcerun summarize_results
+```
+
+### Running on a local workstation
 For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically. This is the recommended way to validate the pipeline with the Step 4 test data before running a full HPC batch.
 
 ```bash
@@ -166,12 +144,6 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 **macOS:** Run as above — conda handles all dependencies natively.
 
 **Windows (WSL2):** Open a WSL2 Ubuntu terminal, navigate to the cloned repository, and run the same command. Ensure conda is installed inside WSL (not the Windows host) before proceeding.
-
-> **Troubleshooting:** Append `debug=true` to the snakemake call inside `run_swam-g_local.sh` to enable verbose step-by-step logging in `data_summary.R`:
-> ```bash
-> snakemake --profile config/local/ \
->           --config in_dir="$INPUT" out_dir="$OUTPUT" debug=true
-> ```
 
 ### Optional: Pathogen Detection SNP-cluster enrichment
 `SWAM-g` can optionally append NCBI Pathogen Detection (PD) isolate metadata and SNP-cluster assignments to the final workbook. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
