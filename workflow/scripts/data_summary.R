@@ -922,7 +922,7 @@ dlog("DONE:  AMR/MGE contig annotation merge (", nrow(contig_map), " rows)")
 
 dlog("START: Final summary table join")
 summary <- gtdbtk %>% select(Sample, Species, closest_genome_reference) %>%
-              left_join(mlst %>% select(Sample, Sequence_Type), by="Sample") %>%
+              left_join(mlst %>% transmute(Sample, MLST_Scheme = Scheme, Sequence_Type), by="Sample") %>%
               left_join(seqsero %>% select(Sample, SeqSero2_Serotype), by="Sample") %>%
               left_join(sistr %>% select(Sample, SISTR_Serovar), by="Sample") %>%
               left_join(ecoli_summary, by="Sample") %>%

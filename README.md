@@ -48,15 +48,14 @@ cd /pathto/workspace
 git clone https://github.com/davis-bc/SWAM-g
 ```
 ### Step 2. Configure slurm profile and rule resources
-`SWAM-g` was constructed and tested on HPC clusters managed by a Slurm scheduler. Three Slurm profiles are provided:
+`SWAM-g` uses one Slurm profile at `config/slurm/`. It keeps the resilient behavior that proved most useful on busy clusters:
 
-| Profile | Recommended for | Behavior |
-|---------|----------------|----------|
-| `config/slurm/large-batch` | **≥50 samples** | Annotation rules are batched 32 samples per Slurm job; Slurm receives the summed resources across all samples in a batch |
-| `config/slurm/small-batch` | **<50 samples** | Each sample runs as its own individual Slurm job with per-job memory headroom |
-| `config/slurm/resilient` | **Busy / flaky clusters** | Keeps going past independent failures, retries transient job hiccups, shows failed logs, and limits grouped downstream jobs to 4 samples instead of 32 |
+- `keep-going`, `rerun-incomplete`, and `restart-times: 2`
+- grouped downstream rules capped at 4 samples per Slurm job
+- quiet rule-level Snakemake output so the driver log stays readable
+- explicit walltime strings such as `1h`, `10h`, and `6d` instead of bare integers
 
-Edit the `slurm_account` and `slurm_partition` fields in whichever Slurm profile configs you plan to use. All resource allocation (`mem_mb`, `runtime`, `threads`) is controlled exclusively in the profile YAML — no edits to rule files are needed.
+Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`. Most per-rule resource allocation (`mem_mb`, `runtime`, `threads`) is controlled there under `set-resources` and `set-threads`.
 
 ```yaml
 default-resources:
@@ -75,24 +74,31 @@ Salmonella serotyping now uses **two complementary methods**:
 Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, the workflow writes a small placeholder TSV for the expected output path and skips the serotyping runtime for that sample. The final workbook cross-references both methods and reports a consensus serotype, preferring the cleaner interpretable result while preserving agreement and QC context.
 
 ### Step 3. Tune resources (optional)
-All per-rule resource allocations are defined in the profile config under `set-resources` and `set-threads`. Edit the appropriate profile file to adjust memory or runtime for any rule — no changes to `.smk` files are needed.
+Most per-rule resource allocations are defined in `config/slurm/config.yaml` under `set-resources` and `set-threads`.
 
-For `unicylcer`, the profile `mem_mb` value is forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
+For `unicylcer`, the requested `mem_mb` value is forwarded to SPAdes as an explicit `-m` memory cap. This is important on new Slurm clusters where tools may otherwise see total node RAM instead of the job allocation.
 
-For example, to give `unicylcer` more RAM in the large-batch profile:
+For example, to give `resfinder` more walltime:
 ```yaml
-# config/slurm/large-batch/config.yaml
+# config/slurm/config.yaml
 set-resources:
-  unicylcer:
-    mem_mb: 200000
-    runtime: 8640
+  resfinder:
+    mem_mb: 4000
+    runtime: "12h"
 ```
 
-For very large runs on a new cluster, tune in this order:
+Assembly retries scale automatically in `workflow/rules/assemble.smk`:
+
+1. attempt 1: `150000 MB`, `6d`
+2. attempt 2: `200000 MB`, `7d`
+3. attempt 3: `250000 MB`, `8d`
+
+For large runs on a new cluster, tune in this order:
 
 1. Increase `unicylcer.mem_mb` if assembly is the first failing step.
-2. If grouped downstream jobs no longer fit node memory, reduce `group-components` or switch to `config/slurm/resilient/`.
-3. Re-run a dry-run before submitting the full batch.
+2. If assemblies still OOM after the automatic retries, raise the retry ceilings in `workflow/rules/assemble.smk`.
+3. If grouped downstream jobs no longer fit node memory, reduce `group-components` in `config/slurm/config.yaml`.
+4. Re-run a dry-run before submitting the full batch.
 
 ### Step 4. Download test data
 To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
@@ -109,7 +115,7 @@ If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...)
 > **Testing locally first is recommended.** See the **Note** at the end of this section for how to run these three samples on a local workstation before submitting a full HPC run.
 
 ### Step 5. Run the pipeline on HPC
-The following is an example `run_swam-g.sh` driver script for executing `SWAM-g` via Slurm. Choose `large-batch` or `small-batch` based on the number of samples (see Step 2).
+The following is an example `submit-swam-g.sh` driver script for executing `SWAM-g` via Slurm.
 
 Replace "/pathto/" placeholders with appropriate paths.
 
@@ -128,55 +134,22 @@ cd /pathto/SWAM-g
 input="/pathto/directory/input"
 output="/pathto/directory/output"
 
-# Use large-batch for ≥50 samples, small-batch for <50 samples
-snakemake --profile config/slurm/large-batch \
-          --config in_dir="$input" out_dir="$output" \
-          --local-cores 1 \
-          --quiet
+bash /pathto/SWAM-g/run_swam-g.sh "$input" "$output"
 
 ```
 Then submit as:
 ```bash
-sbatch run_swam-g.sh
+sbatch submit-swam-g.sh
 ```
 
-### Resilient HPC mode for busy or flaky clusters
-If your Slurm environment has long queue times, intermittent node hiccups, or vague downstream failures, use the dedicated resilient entrypoint instead of the strict one-shot profile call:
+The repository entrypoint `run_swam-g.sh` uses `config/slurm/` automatically. It writes structured per-sample rule logs under `output/logs/` and a concise run-status bundle under `output/logs/run_status/`:
 
-```bash
-bash run_swam-g_resilient.sh /path/to/input /path/to/output
-```
-
-This wrapper uses `config/slurm/resilient/`, which enables:
-
-- `--keep-going`
-- `--rerun-incomplete`
-- `--restart-times 2`
-- `--latency-wait 60`
-- `--show-failed-logs`
-
-It also writes structured per-sample rule logs under `output/logs/` and a two-level post-run report under `output/run_status/`:
-
-- `sample_status.tsv` — one row per sample, with overall state and furthest completed rule
-- `sample_rule_status.tsv` — detailed sample-by-rule drill-down with likely cause, suggested action, and log path
 - `run_report.txt` — short human-readable overview
-- `retry_samples.txt` / `review_samples.txt` / `completed_samples.txt` — sample lists for triage
-- `retry_manifest.tsv` / `review_manifest.tsv` / `completed_manifest.tsv` — FASTQ manifests for reruns, pruning, or downstream staging
-
-To materialize a retry or review subset into a fresh flat input directory, use:
-
-```bash
-python3 workflow/scripts/stage_sample_subset.py \
-    --manifest output/run_status/retry_manifest.tsv \
-    --dest /path/to/retry_input \
-    --mode symlink
-```
-
-That helper creates a new flat directory of symlinks (or copies, if `--mode copy` is used), which can then be re-run through `SWAM-g` as a smaller follow-up batch.
+- `sample_rule_status.tsv` — detailed sample-by-rule drill-down with likely cause, suggested action, and log path
 
 > **Troubleshooting:** Add `debug=true` to `--config` to enable verbose step-by-step logging in `data_summary.R`. Each parsing section will print a `[DEBUG]` message with row counts to the rule log, making it easy to identify where a failure or slowdown occurs:
 > ```bash
-> snakemake --profile config/slurm/large-batch \
+> snakemake --profile config/slurm/ \
 >           --config in_dir="$input" out_dir="$output" debug=true \
 >           --local-cores 1 --forcerun summarize_results
 > ```
@@ -302,7 +275,7 @@ A multi-sheet workbook collating all tool outputs. Each sheet can be used indepe
 
 | Sheet | Contents |
 |-------|----------|
-| `summary_out` | One row per sample: MASH species assignment, MLST sequence type, raw Salmonella serotype calls (`SeqSero2_Serotype`, `SISTR_Serovar`), `Ecoli_serotype` from ECTyper when applicable, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and deduplicated TXSScan secretion-system models present |
+| `summary_out` | One row per sample: MASH species assignment, MLST scheme, MLST sequence type, raw Salmonella serotype calls (`SeqSero2_Serotype`, `SISTR_Serovar`), `Ecoli_serotype` from ECTyper when applicable, AMRFinderPlus AMR genotype, ResFinder AMR genotype and predicted phenotype, PointFinder mutations, plasmid count / rep types / relaxase types, and deduplicated TXSScan secretion-system models present |
 | `AMRFinderPlus` | Full per-hit AMRFinderPlus output including AMR, stress, and virulence elements with contig ID, coordinates, and strand |
 | `assembly_QA` | CheckM2 completeness and contamination estimates plus mean read coverage; includes a `QA` pass/fail flag (N50 > 20 kb, total contigs < 500, coverage ≥ 30×) |
 | `MOBrecon_summary` | MOB-suite plasmid typing: rep type, relaxase type, MPF type, predicted mobility, and predicted host range per plasmid cluster |

@@ -1,4 +1,20 @@
 # ------------------------------------------
+#   Assembly retry resource scaling
+# ------------------------------------------
+
+UNICYCLER_MEM_MB_BY_ATTEMPT = (150000, 200000, 250000)
+UNICYCLER_RUNTIME_BY_ATTEMPT = ("6d", "7d", "8d")
+
+
+def unicycler_mem_mb(_, attempt):
+    return UNICYCLER_MEM_MB_BY_ATTEMPT[min(attempt, len(UNICYCLER_MEM_MB_BY_ATTEMPT)) - 1]
+
+
+def unicycler_runtime(_, attempt):
+    return UNICYCLER_RUNTIME_BY_ATTEMPT[min(attempt, len(UNICYCLER_RUNTIME_BY_ATTEMPT)) - 1]
+
+
+# ------------------------------------------
 #        Clean input data (fastp)
 # ------------------------------------------
 
@@ -69,6 +85,9 @@ rule unicylcer:
         os.path.join(output_dir, "logs", "unicylcer", "{sample}.log")
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.unicycler.txt")
+    resources:
+        mem_mb = unicycler_mem_mb,
+        runtime = unicycler_runtime
     conda: "../envs/assemble.yaml"
     shell:
         r"""
@@ -101,6 +120,7 @@ rule unicylcer:
         spades_mem_gb=$(( ({resources.mem_mb} + 1023) / 1024 ))
         echo "[swamg-threads] {threads}"
         echo "[swamg-mem-mb] {resources.mem_mb}"
+        echo "[swamg-runtime-min] {resources.runtime}"
         echo "[swamg-spades-mem-gb] $spades_mem_gb"
 
         unicycler -1 {input.r1_clean} \

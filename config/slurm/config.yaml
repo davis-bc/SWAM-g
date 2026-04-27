@@ -1,73 +1,60 @@
-# config/slurm/config.yaml
+# Default Slurm profile.
 #
-# NOTE: Three purpose-built profiles are now available and preferred:
-#   config/slurm/large-batch/  — use for ≥50 samples (groups of 32)
-#   config/slurm/small-batch/  — use for <50 samples (individual jobs)
-#   config/slurm/resilient/    — use for busy/flaky clusters (groups of 4, keep-going)
+# This is the single supported HPC profile for SWAM-g. It keeps the resilient
+# execution behavior that proved useful on busy clusters while keeping the
+# submission surface simple for users.
 #
-# This file is retained as a general-purpose fallback. All resource tuning
-# should be done in the profile configs above, not in the rule .smk files.
-
-# ----------------------------
-#  Set global slurm limits
-# ----------------------------
+# Walltimes are written as explicit Snakemake/Slurm-style time strings
+# (for example 1h, 10h, 6d) instead of bare integers so they are not confused
+# with seconds on clusters that interpret numeric values differently.
 
 executor: slurm
 
-jobs: 100                       # Max number of simultaneous jobs submitted to slurm (account max)
-cores: 1024                     # Max number of CPUs across all jobs (account max)
-conda-frontend: conda           # conda or mamba 
-use-conda: True                 # Enable Conda integration
-keep-incomplete: True           # Keep incomplete output to prevent re-computation
+jobs: 100
+cores: 1024
 
-
-# ----------------------------------------------------
-#   Set default resources (if not specified in rules)
-# ----------------------------------------------------
+conda-frontend: conda
+use-conda: true
+keep-incomplete: true
+keep-going: true
+rerun-incomplete: true
+restart-times: 2
+latency-wait: 60
+show-failed-logs: true
+quiet:
+  - rules
 
 default-resources:
   slurm_account: "nrsaamr"
   slurm_partition: "'ord'"
-  mem_mb: 10000               
-  runtime: 8640
- 
-# -----------------------------------------------------------
-#  Assign rules: "groups" (run samples in batches)
-# -----------------------------------------------------------
+  mem_mb: 4000
+  runtime: "6d"
 
 groups:
+  coverage: "coverage"
   mobsuite: "mobsuite"
   amrfinderplus: "amrfinderplus"
   resfinder: "resfinder"
   mef: "mobilelementfinder"
+  checkm2: "checkm2"
+  txsscan: "txsscan"
   ectyper: "ectyper"
   seqsero: "seqsero"
   sistr: "sistr"
-  txsscan: "txsscan"
-  coverage: "coverage"
-  checkm2: "checkm2"
 
-# --------------------------------------------------------------------------------------------------
-#  Set the number of connected DAG components a group can span (sample batch size of each group)
-#  The mem and threads for each group is summed!!!
-#  32 samples to be run in parallel each requesting 1 thread (cpu) = 32 cpus requested in group job
-# --------------------------------------------------------------------------------------------------
-
+# Grouped downstream rules are capped at 4 samples per job to reduce blast
+# radius when a cluster node fails or a grouped step is underprovisioned.
 group-components:
-  mobsuite: 32 
-  amrfinderplus: 32
-  resfinder: 32
-  ectyper: 32
-  mobilelementfinder: 32
-  seqsero: 32
-  sistr: 32
-  txsscan: 32
-  coverage: 32
-  checkm2: 32
-
-# -----------------------------------------------------------
-#  Per-rule thread allocation (same as large-batch profile)
-# -----------------------------------------------------------
+  coverage: 4
+  mobsuite: 4
+  amrfinderplus: 4
+  resfinder: 4
+  mobilelementfinder: 4
+  checkm2: 4
+  txsscan: 4
+  ectyper: 4
+  seqsero: 4
+  sistr: 4
 
 set-threads:
   fastp: 1
@@ -85,50 +72,43 @@ set-threads:
   sistr: 4
   mlst: 1
 
-# -----------------------------------------------------------
-#  Per-rule resource allocation (same as large-batch profile)
-# -----------------------------------------------------------
-
 set-resources:
   fastp:
     mem_mb: 10000
-    runtime: 60
-  unicylcer:
-    mem_mb: 150000
-    runtime: 8640
+    runtime: "1h"
   coverage:
     mem_mb: 4000
-    runtime: 60
+    runtime: "1h"
   mash_classify:
     mem_mb: 20000
-    runtime: 60
+    runtime: "1h"
   mobsuite:
     mem_mb: 2000
-    runtime: 600
+    runtime: "10h"
   amrfinderplus:
     mem_mb: 2000
-    runtime: 600
+    runtime: "10h"
   resfinder:
     mem_mb: 4000
-    runtime: 600
+    runtime: "10h"
   mef:
     mem_mb: 2000
-    runtime: 600
+    runtime: "10h"
   checkm2:
     mem_mb: 4000
-    runtime: 720
+    runtime: "12h"
   txsscan:
     mem_mb: 2000
-    runtime: 600
+    runtime: "10h"
   ectyper:
     mem_mb: 5000
-    runtime: 600
+    runtime: "10h"
   seqsero:
     mem_mb: 4000
-    runtime: 120
+    runtime: "2h"
   sistr:
     mem_mb: 4000
-    runtime: 120
+    runtime: "2h"
   mlst:
     mem_mb: 4000
-    runtime: 120
+    runtime: "2h"

@@ -290,27 +290,6 @@ def write_tsv(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
             handle.write("\t".join(str(row.get(field, "")) for field in fieldnames) + "\n")
 
 
-def write_list(path: Path, samples: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        for sample in samples:
-            handle.write(f"{sample}\n")
-
-
-def write_manifest(path: Path, samples: list[str], sample_pairs: dict[str, dict[str, str]]) -> None:
-    rows = []
-    for sample in samples:
-        pair = sample_pairs.get(sample, {})
-        rows.append(
-            {
-                "sample": sample,
-                "r1": pair.get("r1", ""),
-                "r2": pair.get("r2", ""),
-            }
-        )
-    write_tsv(path, rows, ["sample", "r1", "r2"])
-
-
 def build_text_report(
     report_path: Path,
     sample_rows: list[dict],
@@ -319,8 +298,8 @@ def build_text_report(
 ) -> None:
     counts = Counter(row["overall_status"] for row in sample_rows)
     with report_path.open("w", encoding="utf-8") as handle:
-        handle.write("SWAM-g resilient run report\n")
-        handle.write("==========================\n\n")
+        handle.write("SWAM-g run report\n")
+        handle.write("=================\n\n")
         if driver_log:
             handle.write(f"Driver log: {driver_log}\n\n")
 
@@ -350,7 +329,7 @@ def build_text_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build a post-run resilient status report for SWAM-g.")
+    parser = argparse.ArgumentParser(description="Build a post-run status report for SWAM-g.")
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--driver-log", default="")
@@ -358,9 +337,8 @@ def main() -> None:
 
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
-    run_status_dir = output_dir / "run_status"
-    sample_pairs = discover_sample_pairs(input_dir)
-    samples = list(sample_pairs.keys())
+    run_status_dir = output_dir / "logs" / "run_status"
+    samples = list(discover_sample_pairs(input_dir).keys())
 
     rule_rows: list[dict] = []
     sample_rows: list[dict] = []
@@ -377,10 +355,6 @@ def main() -> None:
         sample_rows.append(summarize_sample(sample_rule_rows))
 
     failed_rows = [row for row in rule_rows if row["status"] == "FAILED"]
-    retry_samples = [row["sample"] for row in sample_rows if row["overall_status"] == "NEEDS_RETRY"]
-    review_samples = [row["sample"] for row in sample_rows if row["overall_status"] == "NEEDS_REVIEW"]
-    completed_samples = [row["sample"] for row in sample_rows if row["overall_status"] == "COMPLETED"]
-
     write_tsv(
         run_status_dir / "sample_rule_status.tsv",
         rule_rows,
@@ -395,26 +369,6 @@ def main() -> None:
             "exit_code",
         ],
     )
-    write_tsv(
-        run_status_dir / "sample_status.tsv",
-        sample_rows,
-        [
-            "sample",
-            "overall_status",
-            "completed_rules",
-            "total_rules",
-            "last_completed_rule",
-            "failed_rule",
-            "likely_cause",
-            "suggested_action",
-        ],
-    )
-    write_list(run_status_dir / "retry_samples.txt", retry_samples)
-    write_list(run_status_dir / "review_samples.txt", review_samples)
-    write_list(run_status_dir / "completed_samples.txt", completed_samples)
-    write_manifest(run_status_dir / "retry_manifest.tsv", retry_samples, sample_pairs)
-    write_manifest(run_status_dir / "review_manifest.tsv", review_samples, sample_pairs)
-    write_manifest(run_status_dir / "completed_manifest.tsv", completed_samples, sample_pairs)
     build_text_report(run_status_dir / "run_report.txt", sample_rows, failed_rows, args.driver_log)
 
 
