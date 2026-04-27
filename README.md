@@ -1,4 +1,4 @@
-```                                                                                                                                                                                                                                                                                                            
+```                                                                                                                                                                                                                                                           
                                          _______          __     __  __             
                                         / ____\ \        / /\   |  \/  |            
                                        | (___  \ \  /\  / /  \  | \  / |______ __ _ 
@@ -7,12 +7,15 @@
                                        |_____/    \/  \/_/    \_\_|  |_|      \__, |
                                                                                __/ |
                                                                               |___/ 
-
 ```
-`SWAM-g` is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, phylogenetics, and optional Pathogen Detection metadata enrichment into one reporting workflow.
+`SWAM-g` is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, and optional Pathogen Detection metadata enrichment into one reporting workflow.
+
+`SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
 
-![SWAM-g pipeline](docs/SWAM-g_diagram-V2.drawio.png)
+
+<img width="976" height="755" alt="SWAM-g_diagram-V3 drawio" src="https://github.com/user-attachments/assets/1ad338d2-5b63-4f1b-8fe3-227384eb3831" />
+
 
 
 ## Setup and Configuration
@@ -66,12 +69,11 @@ mkdir -p /pathto/directory/input
 cd /pathto/directory/input
 fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
-`SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
-### Step 4. Run the pipeline on HPC
-The following is an example `submit-swam-g.sh` driver script for executing `SWAM-g` via Slurm.
+### Step 4. Run the pipeline on an HPC cluster
+Executing `bash run_swam-g.sh input output` on a login node is not recommended, especially for busy clusters.
 
-Replace "/pathto/" placeholders with appropriate paths.
+Best to execute within a driver script `submit-swam-g.sh`:
 
 ```bash
 #!/bin/bash
@@ -80,15 +82,14 @@ Replace "/pathto/" placeholders with appropriate paths.
 #SBATCH --time=1-00:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=20g
-#SBATCH --job-name=snakemake_driver
-#SBATCH --output=/pathto/workspace/slurm/snakemake.%j
+#SBATCH --job-name=swam-g_driver
+#SBATCH --output=/pathto/workspace/slurm/swam-g.%j
 
-cd /pathto/SWAM-g
-
+swam_g="/pathto/SWAM-g/run_swam-g.sh"
 input="/pathto/directory/input"
 output="/pathto/directory/output"
 
-bash /pathto/SWAM-g/run_swam-g.sh "$input" "$output"
+bash "$swam_g" "$input" "$output"
 
 ```
 Then submit as:
@@ -98,8 +99,16 @@ sbatch submit-swam-g.sh
 
 ## Notes
 
+### Run outputs and troubleshooting
+The HPC entrypoint `run_swam-g.sh` writes:
+
+- `output/logs/run_status/run_report.txt`
+- `output/logs/run_status/sample_rule_status.tsv`
+
+If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, `SWAM-g` will continue with the paired subset only. Fix or remove unmatched FASTQs before a production run.
+
 ### Resource tuning
-The default Slurm profile in `config/slurm/config.yaml` has been retuned from the benchmark file `swam-g-test-benchamrks.txt`.
+The default Slurm profile in `config/slurm/config.yaml` has been tuned from benchmarking data.
 
 For `unicylcer`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
 
@@ -107,7 +116,7 @@ For `unicylcer`, assembly retries scale automatically in `workflow/rules/assembl
 2. attempt 2: `60000 MB`, `6h`
 3. attempt 3: `80000 MB`, `8h`
 
-If assembly still fails first, raise those retry tiers before broadly increasing other rule allocations.
+If assembly still fails, raise retry tiers before broadly increasing other rule allocations.
 
 ### Salmonella serotyping behavior
 Salmonella serotyping uses two complementary methods:
@@ -117,23 +126,8 @@ Salmonella serotyping uses two complementary methods:
 
 Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, SWAM-g writes the expected placeholder TSV and skips the serotyping runtime for that sample.
 
-### Run outputs and troubleshooting
-The HPC entrypoint `run_swam-g.sh` writes:
-
-- `output/logs/run_status/run_report.txt`
-- `output/logs/run_status/sample_rule_status.tsv`
-
-If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, SWAM-g will continue with the paired subset only. Fix or remove unmatched FASTQs before a production run.
-
-For verbose R-summary logging, add `debug=true` to `--config`, for example:
-```bash
-snakemake --profile config/slurm/ \
-          --config in_dir="$input" out_dir="$output" debug=true \
-          --local-cores 1 --forcerun summarize_results
-```
-
 ### Running on a local workstation
-For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically. This is the recommended way to validate the pipeline with the Step 4 test data before running a full HPC batch.
+For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, and serializes the memory-intensive MASH classify step automatically. This is a good way to validate the pipeline with the test data before running a full HPC batch.
 
 ```bash
 bash run_swam-g_local.sh /path/to/input /path/to/output
