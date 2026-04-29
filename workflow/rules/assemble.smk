@@ -162,8 +162,10 @@ rule coverage:
         set -euo pipefail
 
         started_at=$(date -Is)
+        sort_tmp=$(mktemp -d)
         on_error() {{
             rc=$?
+            rm -rf "$sort_tmp"
             echo "[swamg-rule] coverage"
             echo "[swamg-sample] {wildcards.sample}"
             echo "[swamg-host] $(hostname)"
@@ -181,9 +183,11 @@ rule coverage:
         echo "[swamg-started-at] $started_at"
 
         # Map reads using minimap2
+        # Use a unique temp directory for samtools sort to avoid collisions on retries
         minimap2 -ax sr {input.fasta} {input.r1} {input.r2} | \
         samtools view -@ {threads} -bS - | \
-        samtools sort -@ {threads} -o {output.bam}
+        samtools sort -@ {threads} -T "$sort_tmp/sort" -o {output.bam}
+        rm -rf "$sort_tmp"
 
         # Index BAM for coverage calculation
         samtools index {output.bam}
