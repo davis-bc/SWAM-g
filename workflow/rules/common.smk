@@ -20,7 +20,7 @@ def config_bool(key, default=False):
 
 
 debug_mode = config_bool("debug", False)
-pd_lookup_enabled = config_bool("pd_lookup", False)
+pd_lookup_enabled = config_bool("pd_lookup", True)
 pd_lookup_backend = str(config.get("pd_backend", "ftp")).strip() or "ftp"
 pd_comparator_limit = int(config.get("pd_comparator_limit", 10))
 pd_sample_metadata_tsv = config.get("pd_sample_metadata_tsv")

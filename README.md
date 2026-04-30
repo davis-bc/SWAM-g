@@ -139,8 +139,8 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 
 **Windows (WSL2):** Open a WSL2 Ubuntu terminal, navigate to the cloned repository, and run the same command. Ensure conda is installed inside WSL (not the Windows host) before proceeding.
 
-### Optional: Pathogen Detection SNP-cluster enrichment
-`SWAM-g` can optionally append NCBI Pathogen Detection (PD) isolate metadata and SNP-cluster assignments to the final workbook. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
+### Pathogen Detection SNP-cluster enrichment
+`SWAM-g` appends NCBI Pathogen Detection (PD) isolate metadata and SNP-cluster assignments to the final workbook by default. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
 
 By default, `SWAM-g` now queries the **current public PD FTP `latest_snps` release** at runtime (`pd_backend=ftp`). The lookup flow is:
 
@@ -167,14 +167,27 @@ Supported metadata columns are matched case-insensitively and may include:
 
 If `Sample` itself looks like an SRR accession (for example `SRR30768419`), `SWAM-g` will try to resolve the corresponding BioSample automatically through NCBI SRA metadata before joining against the PD table.
 
-Example:
+For the bundled driver scripts, use explicit SWAM-g flags instead of appending raw `pd_lookup=true` tokens after the script arguments:
+
+```bash
+bash run_swam-g.sh "$input" "$output" --pd-lookup=false
+
+bash run_swam-g.sh "$input" "$output" \
+    --pd-backend=table \
+    --pd-isolates-tsv="/path/to/pd_isolates.tsv" \
+    --pd-exceptions-tsv="/path/to/pd_isolate_exceptions.tsv"
+
+bash run_swam-g_local.sh /path/to/input /path/to/output \
+    --pd-sample-metadata-tsv="/path/to/sample_metadata.tsv"
+```
+
+If you are calling `snakemake` directly, the equivalent config looks like:
 
 ```bash
 snakemake --profile config/local/ \
           --config \
             in_dir="$INPUT" \
             out_dir="$OUTPUT" \
-            pd_lookup=true \
             pd_backend=ftp \
             pd_comparator_limit=10 \
             pd_sample_metadata_tsv="/path/to/sample_metadata.tsv"
@@ -187,7 +200,6 @@ snakemake --profile config/local/ \
           --config \
             in_dir="$INPUT" \
             out_dir="$OUTPUT" \
-            pd_lookup=true \
             pd_backend=table \
             pd_isolates_tsv="/path/to/pd_isolates.tsv" \
             pd_exceptions_tsv="/path/to/pd_isolate_exceptions.tsv"

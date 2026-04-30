@@ -752,7 +752,7 @@ comparator_records = pd.DataFrame(columns=COMPARATOR_COLUMNS)
 
 if not enabled:
     records["pd_lookup_status"] = "DISABLED"
-    records["pd_lookup_note"] = "Set pd_lookup=true to enable optional Pathogen Detection enrichment."
+    records["pd_lookup_note"] = "Pathogen Detection enrichment was disabled via pd_lookup=false."
 else:
     sra_cache: dict[str, dict[str, str]] = {}
     for idx, row in records.iterrows():

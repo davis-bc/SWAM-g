@@ -272,8 +272,13 @@ rule mef:
         echo "[swamg-host] $(hostname)"
         echo "[swamg-started-at] $started_at"
 
-        # Preprocess FASTA headers into a temporary file
-        sed -E 's/^(>[^ ]+).*/\\1/' {input.assembly} > {output.temp_fasta}
+        # Trim header descriptions while preserving valid FASTA identifiers.
+        awk '/^>/ {{ sub(/[[:space:]].*$/, "", $0) }} {{ print }}' {input.assembly} > {output.temp_fasta}
+
+        if [ ! -s {output.temp_fasta} ] || ! grep -q '^>' {output.temp_fasta}; then
+            echo "MobileElementFinder preprocessing produced an invalid FASTA: {output.temp_fasta}" >&2
+            exit 1
+        fi
 
         # Skip mefinder if the assembly contains no sequences (empty FASTA causes
         # BLAST to abort with a "CFastaReader: Near line 1" error).
