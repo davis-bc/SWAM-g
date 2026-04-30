@@ -272,13 +272,69 @@ rule mef:
         echo "[swamg-host] $(hostname)"
         echo "[swamg-started-at] $started_at"
 
-        # Trim header descriptions while preserving valid FASTA identifiers.
-        awk '/^>/ {{ sub(/[[:space:]].*$/, "", $0) }} {{ print }}' {input.assembly} > {output.temp_fasta}
+        # Rebuild a clean FASTA for MobileElementFinder. This strips a UTF-8 BOM,
+        # normalizes line endings, trims header descriptions to the first token,
+        # and preserves only sequence data BLAST will accept.
+        python - <<'PY' "{input.assembly}" "{output.temp_fasta}"
+import sys
 
-        if [ ! -s {output.temp_fasta} ] || ! grep -q '^>' {output.temp_fasta}; then
-            echo "MobileElementFinder preprocessing produced an invalid FASTA: {output.temp_fasta}" >&2
-            exit 1
-        fi
+input_path, output_path = sys.argv[1:3]
+allowed_bases = set("ACGTRYSWKMBDHVN.-*")
+
+
+def write_record(handle, header, sequence_lines):
+    if header is None:
+        return
+
+    sequence = "".join(sequence_lines)
+    if not sequence:
+        raise SystemExit("Empty FASTA sequence for %s in %s" % (header, input_path))
+
+    handle.write(header + "\n")
+    for i in range(0, len(sequence), 80):
+        handle.write(sequence[i:i + 80] + "\n")
+
+
+with open(input_path, encoding="utf-8-sig") as src, open(output_path, "w", encoding="ascii", newline="\n") as dst:
+    header = None
+    sequence_lines = []
+    saw_header = False
+
+    for line_number, raw_line in enumerate(src, start=1):
+        line = raw_line.rstrip("\r\n")
+        if not line:
+            continue
+        if line.startswith(";"):
+            continue
+
+        if line.startswith(">"):
+            write_record(dst, header, sequence_lines)
+            identifier = line[1:].strip().split(None, 1)[0] if line[1:].strip() else ""
+            if not identifier:
+                raise SystemExit("Missing FASTA identifier on line %d in %s" % (line_number, input_path))
+            header = ">" + identifier
+            sequence_lines = []
+            saw_header = True
+            continue
+
+        if not saw_header:
+            raise SystemExit(
+                "Encountered FASTA sequence data before the first header on line %d in %s"
+                % (line_number, input_path)
+            )
+
+        sequence = "".join(line.split()).upper()
+        invalid_bases = sorted(set(sequence) - allowed_bases)
+        if invalid_bases:
+            raise SystemExit(
+                "Invalid FASTA character(s) %s on line %d in %s"
+                % ("".join(invalid_bases), line_number, input_path)
+            )
+        sequence_lines.append(sequence)
+
+    if saw_header:
+        write_record(dst, header, sequence_lines)
+PY
 
         # Skip mefinder if the assembly contains no sequences (empty FASTA causes
         # BLAST to abort with a "CFastaReader: Near line 1" error).

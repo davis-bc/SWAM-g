@@ -134,6 +134,16 @@ def normalize_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value).strip().lower()).strip()
 
 
+def extract_scientific_name(value: str) -> str:
+    text = str(value).strip()
+    matches = re.findall(r"s__([^;\"']+)", text)
+    for candidate in reversed(matches):
+        cleaned = candidate.strip().strip("\"'").replace("_", " ")
+        if cleaned and cleaned.lower() != "unknown":
+            return cleaned
+    return text.strip().strip("\"'").replace("_", " ")
+
+
 def match_columns(columns: list[str], aliases: dict[str, list[str]]) -> dict[str, str]:
     normalized = {normalize_header(col): col for col in columns}
     matched = {}
@@ -172,7 +182,7 @@ def load_mash_species_map(path: Path) -> dict[str, str]:
     if "user_genome" not in mash.columns or "classification" not in mash.columns:
         return {}
     mash["Sample"] = mash["user_genome"].str.replace(".chromosome", "", regex=False)
-    mash["scientific_name"] = mash["classification"].str.replace(r".*s__", "", regex=True)
+    mash["scientific_name"] = mash["classification"].apply(extract_scientific_name)
     mash["scientific_name"] = mash["scientific_name"].replace("unknown", "")
     mash = mash[mash["Sample"] != ""]
     return dict(zip(mash["Sample"], mash["scientific_name"]))
@@ -247,9 +257,14 @@ def open_url(url: str, method: str = "GET"):
     return urlopen(request, timeout=60)
 
 
-def fetch_directory_entries(url: str) -> list[str]:
-    with open_url(url) as response:
-        html = response.read().decode("utf-8", errors="replace")
+def fetch_directory_entries(url: str, missing_ok: bool = False) -> list[str]:
+    try:
+        with open_url(url) as response:
+            html = response.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        if missing_ok and exc.code == 404:
+            return []
+        raise
     entries = re.findall(r'href="([^"]+)"', html)
     cleaned = []
     for entry in entries:
@@ -366,9 +381,10 @@ class PDLiveClient:
             return self.group_releases[group]
 
         base_url = urljoin(FTP_RESULTS_URL, f"{group}/latest_snps/")
-        metadata_entries = fetch_directory_entries(urljoin(base_url, "Metadata/"))
-        cluster_entries = fetch_directory_entries(urljoin(base_url, "Clusters/"))
-        exception_entries = fetch_directory_entries(urljoin(base_url, "Exceptions/"))
+        root_entries = fetch_directory_entries(base_url, missing_ok=True)
+        metadata_entries = fetch_directory_entries(urljoin(base_url, "Metadata/"), missing_ok=True)
+        cluster_entries = fetch_directory_entries(urljoin(base_url, "Clusters/"), missing_ok=True)
+        exception_entries = fetch_directory_entries(urljoin(base_url, "Exceptions/"), missing_ok=True)
 
         metadata_name = next((entry for entry in metadata_entries if entry.endswith(".metadata.tsv")), "")
         all_isolates_name = next((entry for entry in cluster_entries if entry.endswith(".reference_target.all_isolates.tsv")), "")
@@ -377,6 +393,7 @@ class PDLiveClient:
         exceptions_name = next((entry for entry in exception_entries if entry.endswith(".exceptions.tsv")), "")
 
         release = {
+            "base_url": base_url if root_entries else "",
             "metadata_url": urljoin(base_url, f"Metadata/{metadata_name}") if metadata_name else "",
             "all_isolates_url": urljoin(base_url, f"Clusters/{all_isolates_name}") if all_isolates_name else "",
             "cluster_list_url": urljoin(base_url, f"Clusters/{cluster_list_name}") if cluster_list_name else "",
@@ -411,7 +428,26 @@ def select_query_rows(records: pd.DataFrame, release: dict[str, str]) -> tuple[d
             matches.extend(sample_by_target.get(row.get("target_acc", ""), []))
             matches.extend(sample_by_asm.get(row.get("asm_acc", ""), []))
             for sample in matches:
-                query_rows.setdefault(sample, row)
+                query_rows.setdefault(sample, {**row, "_lookup_source": "pd_ftp_latest_snps"})
+
+    if release["cluster_list_url"]:
+        for row in stream_tsv_rows(release["cluster_list_url"]):
+            matches = []
+            matches.extend(sample_by_biosample.get(row.get("biosample_acc", ""), []))
+            matches.extend(sample_by_target.get(row.get("target_acc", ""), []))
+            matches.extend(sample_by_asm.get(row.get("gencoll_acc", ""), []))
+            cluster_row = {
+                "biosample_acc": row.get("biosample_acc", ""),
+                "target_acc": row.get("target_acc", ""),
+                "asm_acc": row.get("gencoll_acc", ""),
+                "scientific_name": "",
+                "source_type": "",
+                "host": "",
+                "isolation_source": "",
+                "_lookup_source": "pd_ftp_cluster_list",
+            }
+            for sample in matches:
+                query_rows.setdefault(sample, cluster_row)
 
     exception_rows: dict[str, dict[str, str]] = {}
     if release["exceptions_url"]:
@@ -563,6 +599,13 @@ def run_live_lookup(records: pd.DataFrame, comparator_limit: int) -> tuple[pd.Da
 
     for group, indices in group_to_indices.items():
         release = client.get_group_release(group)
+        if not release["base_url"]:
+            for idx in indices:
+                if records.at[idx, "biosample_acc"]:
+                    records.at[idx, "pd_lookup_status"] = "NOT_FOUND"
+                    records.at[idx, "pd_lookup_source"] = "pd_ftp_latest_snps"
+                    records.at[idx, "pd_lookup_note"] = f"No live PD FTP release was found for taxgroup '{group}'."
+            continue
         group_records = records.loc[indices, ["Sample", "srr_acc", "biosample_acc", "pd_target_acc", "pd_asm_acc"]]
         query_rows, exception_rows = select_query_rows(group_records, release)
 
@@ -594,7 +637,7 @@ def run_live_lookup(records: pd.DataFrame, comparator_limit: int) -> tuple[pd.Da
                 records.at[idx, "pd_source_type"] = query_row.get("source_type", "")
                 records.at[idx, "pd_host"] = query_row.get("host", "")
                 records.at[idx, "pd_isolation_source"] = query_row.get("isolation_source", "")
-                records.at[idx, "pd_lookup_source"] = "pd_ftp_latest_snps"
+                records.at[idx, "pd_lookup_source"] = query_row.get("_lookup_source", "pd_ftp_latest_snps")
 
             target_acc = records.at[idx, "pd_target_acc"]
             assignment = assignments.get(target_acc, {})

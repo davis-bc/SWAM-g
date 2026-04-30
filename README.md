@@ -147,6 +147,7 @@ By default, `SWAM-g` now queries the **current public PD FTP `latest_snps` relea
 1. resolve `SRR -> BioSample` through NCBI SRA metadata when needed
 2. map the sample to a PD organism group using MASH species (or SRA species as fallback)
 3. find the current PD isolate record and SNP cluster from the live FTP release
+   - some taxgroups publish `Clusters/` and `Exceptions/` without a `Metadata/` directory; SWAM-g now falls back to `cluster_list.tsv` where possible instead of failing the run
 4. return up to `pd_comparator_limit` cluster comparators
    - exact SNP-ranked neighbors when the public `SNP_distances.tsv` is small enough to scan
    - otherwise 10 same-cluster comparators from the live cluster membership table
@@ -311,6 +312,6 @@ Key tools are pinned to specific versions in the conda environment files (`workf
 | Prodigal | latest | Unpinned |
 | ResFinder | latest | Unpinned |
 | MOB-suite | latest (pip) | Unpinned; database is staged under `dbs/mob_suite` and passed explicitly to `mob_recon` for offline HPC execution |
-| MobileElementFinder | latest (pip) | Unpinned |
+| MobileElementFinder | 1.1.2 (pip) | Exact pin with `mgedb==1.1.1`; MEF inputs are sanitized to strip UTF-8 BOMs and trim FASTA headers before BLAST |
 | SeqSero2 | 1.3.1 | Exact pin from Bioconda; environment currently solved with `python=3.7`, `biopython=1.73` |
 | SISTR | ≥1.1.3 | Minimum version; environment currently pinned to `python=3.11`, `setuptools<81` for CLI compatibility |
