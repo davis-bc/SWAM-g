@@ -275,8 +275,16 @@ rule mef:
         # Preprocess FASTA headers into a temporary file
         sed -E 's/^(>[^ ]+).*/\\1/' {input.assembly} > {output.temp_fasta}
 
-        # Run mefinder on the temporary FASTA file
-        mefinder find -c {output.temp_fasta} $(dirname {output.mef})/{wildcards.sample} --temp-dir {params.temp_dir}
+        # Skip mefinder if the assembly contains no sequences (empty FASTA causes
+        # BLAST to abort with a "CFastaReader: Near line 1" error).
+        # Write a stub CSV that matches mefinder's 5-comment-line + header format
+        # so downstream parsers (data_summary.R, skip=5) see a zero-row data frame.
+        if [ "$(grep -c '^>' {output.temp_fasta} || true)" -eq 0 ]; then
+            printf '# No sequences in assembly - mefinder skipped\n#\n#\n#\n#\nname,type,contig,start,end\n' > {output.mef}
+        else
+            # Run mefinder on the temporary FASTA file
+            mefinder find -c {output.temp_fasta} $(dirname {output.mef})/{wildcards.sample} --temp-dir {params.temp_dir}
+        fi
 
         trap - ERR
         echo "[swamg-finished-at] $(date -Is)"
