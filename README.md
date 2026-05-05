@@ -1,16 +1,7 @@
-```                                                                                                                                                                                                                                                           
-                                         _______          __     __  __             
-                                        / ____\ \        / /\   |  \/  |            
-                                       | (___  \ \  /\  / /  \  | \  / |______ __ _ 
-                                        \___ \  \ \/  \/ / /\ \ | |\/| |______/ _` |
-                                        ____) |  \  /\  / ____ \| |  | |     | (_| |
-                                       |_____/    \/  \/_/    \_\_|  |_|      \__, |
-                                                                               __/ |
-                                                                              |___/ 
-```
-`SWAM-g` is a Snakemake pipeline for Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, and optional Pathogen Detection metadata enrichment into one reporting workflow.
+# OHM-g: One Health Genomic AMR Monitoring
+`OHM-g` is a modular Snakemake pipeline for AMR analysis of Illumina bacterial whole-genome sequencing data. It combines read QC, assembly, taxonomy, AMR profiling, plasmid and mobile-element screening, MLST, conditional serotyping, and optional [Pathogen Detection](https://www.ncbi.nlm.nih.gov/pathogens) metadata enrichment into one reporting workflow.
 
-`SWAM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
+`OHM-g` takes a directory of paired-end FASTQs as input and a target directory for output. It currently cannot handle single-end Illumina or long-read datatypes.
 
 
 
@@ -28,7 +19,7 @@
 > **Databases:** Reference databases and model bundles are bootstrapped by Snakemake local init rules into the repo-level `dbs/` directory. On HPC, the first bootstrap or any later refresh still needs to run from an internet-connected login/head node; downstream compute-node jobs then reuse the staged `dbs/` contents fully offline.
 
 ### Step 0. Install conda/mamba manager, Snakemake, and SRA-tools
-`SWAM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
+`OHM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
 Users should install either [miniforge](https://github.com/conda-forge/miniforge) or [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#linux-2) if their shells are not already configured for Conda.
 
 Code snippet for installing miniforge3 in your home directory and reconfiguring your shell:
@@ -44,19 +35,16 @@ conda install "snakemake>=8" snakemake-executor-plugin-slurm sra-tools
 > **HPC users:** `snakemake-executor-plugin-slurm` is required for the Slurm profile. If you are running on a local workstation only, it can be omitted.
 
 ### Step 1. Clone repo
-Replace "/pathto/workspace" with where you want `SWAM-g` to live.
-
 ```bash
-cd /pathto/workspace
-git clone https://github.com/davis-bc/SWAM-g
+git clone https://github.com/davis-bc/OHM-g
 ```
 ### Step 2. Configure your profile
-`SWAM-g` now uses the profile config files as the main user-facing entrypoint:
+`OHM-g` uses the profile config files as the main workflow entrypoint:
 
 - `config/slurm/config.yaml` for HPC runs
 - `config/local/config.yaml` for workstation runs
 
-Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`, then set the optional analysis booleans in the profile's `config:` block. The mandatory core path always runs: `fastp`, `unicylcer`, MASH taxonomy, and AMRFinderPlus.
+Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`, then set the optional analysis booleans in the profile's `config:` block. The mandatory core path always runs: `fastp`, `unicylcer`, `MASH` taxonomy, `MOB-recon`, and `AMRFinderPlus`.
 
 ```yaml
 config:
@@ -78,19 +66,17 @@ default-resources:
 
 More information on Snakemake configurations for different compute environments can be found in the [Snakemake docs](https://snakemake.readthedocs.io/en/stable/).
 
-### Step 3. Download test data
+### Step 3. Download some test data
 To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
 
 ```bash
-mkdir -p /pathto/directory/input
-cd /pathto/directory/input
 fasterq-dump SRR30768419 SRR34965641 SRR7839461
 ```
 
 ### Step 4. Run the pipeline on an HPC cluster
-Executing `bash run_swam-g.sh input output` on a login node is not recommended, especially for busy clusters.
+Executing `bash run_ohm-g.sh input output` on a login node is not recommended, especially for busy clusters.
 
-Best to execute within a driver script `submit-swam-g.sh`:
+Best to execute within a driver script `submit-ohm-g.sh`:
 
 ```bash
 #!/bin/bash
@@ -99,35 +85,35 @@ Best to execute within a driver script `submit-swam-g.sh`:
 #SBATCH --time=1-00:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=20g
-#SBATCH --job-name=swam-g_driver
-#SBATCH --output=/pathto/workspace/slurm/swam-g.%j
+#SBATCH --job-name=ohm-g_driver
+#SBATCH --output=/pathto/workspace/slurm/ohm-g.%j
 
-swam_g="/pathto/SWAM-g/run_swam-g.sh"
+ohm_g="/pathto/OHM-g/run_ohm-g.sh"
 input="/pathto/directory/input"
 output="/pathto/directory/output"
 
-bash "$swam_g" "$input" "$output"
+bash "$ohm_g" "$input" "$output"
 
 ```
 Then submit as:
 ```bash
-sbatch submit-swam-g.sh
+sbatch submit-ohm-g.sh
 ```
 
 ## Notes
 
 ### Run outputs and troubleshooting
-The HPC entrypoint `run_swam-g.sh` writes:
+The HPC entrypoint `run_ohm-g.sh` writes:
 
 - `output/logs/run_status/run_report.txt`
 - `output/logs/run_status/sample_rule_status.tsv`
 
-If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, `SWAM-g` will continue with the paired subset only. Fix or remove unmatched FASTQs before a production run.
+If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...) files`, `OHM-g` will continue with the paired subset only. Fix or remove unmatched FASTQs before a production run.
 
 ### Resource tuning
 The default Slurm profile in `config/slurm/config.yaml` has been tuned from benchmarking data.
 
-For `unicylcer`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
+For `Unicylcer`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
 
 1. attempt 1: `40000 MB`, `4h`
 2. attempt 2: `60000 MB`, `6h`
@@ -144,10 +130,10 @@ Salmonella serotyping uses two complementary methods:
 Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, SWAM-g writes the expected placeholder TSV and skips the serotyping runtime for that sample.
 
 ### Running on a local workstation
-For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_swam-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, serializes the memory-intensive MASH classify step automatically, and exposes the same optional analysis booleans in its `config:` block. This is a good way to validate the pipeline with the test data before running a full HPC batch.
+For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_ohm-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, serializes the memory-intensive MASH classify step automatically, and exposes the same optional analysis booleans in its `config:` block. This is a good way to validate the pipeline with the test data before running a full HPC batch.
 
 ```bash
-bash run_swam-g_local.sh /path/to/input /path/to/output
+bash run_ohm-g_local.sh /path/to/input /path/to/output
 ```
 
 If no arguments are provided, it defaults to `./input` and `./output` relative to the repository root.
@@ -157,14 +143,18 @@ If no arguments are provided, it defaults to `./input` and `./output` relative t
 **Windows (WSL2):** Open a WSL2 Ubuntu terminal, navigate to the cloned repository, and run the same command. Ensure conda is installed inside WSL (not the Windows host) before proceeding.
 
 ### Pathogen Detection SNP-cluster enrichment
-`SWAM-g` appends NCBI Pathogen Detection (PD) isolate metadata and SNP-cluster assignments to the final workbook by default. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
+If i) your isolates are already in [Pathogen Detection](https://www.ncbi.nlm.nih.gov/pathogens), and 
 
-By default, `SWAM-g` now queries the **current public PD FTP `latest_snps` release** at runtime (`pd_backend=ftp`). The lookup flow is:
+ii) you are using SRA run accessions as samples names (e.g., SRR30768419_1.fastq.gz SRR30768419_2.fastq.gz) 
+
+`OHM-g` will append isolate metadata and SNP-cluster assignments to the final workbook by default. This is a **post-processing enrichment step** only — it does **not** run local SNP clustering and it does **not** block the main pipeline if PD lookups are unavailable.
+
+By default, `OHM-g` queries the **current public PD FTP `latest_snps` release** at runtime (`pd_backend=ftp`). The lookup flow is:
 
 1. resolve `SRR -> BioSample` through NCBI SRA metadata when needed
 2. map the sample to a PD organism group using MASH species (or SRA species as fallback)
 3. find the current PD isolate record and SNP cluster from the live FTP release
-   - some taxgroups publish `Clusters/` and `Exceptions/` without a `Metadata/` directory; SWAM-g now falls back to `cluster_list.tsv` where possible instead of failing the run
+   - some taxgroups publish `Clusters/` and `Exceptions/` without a `Metadata/` directory; OHM-g now falls back to `cluster_list.tsv` where possible instead of failing the run
 4. return up to `pd_comparator_limit` cluster comparators
    - exact SNP-ranked neighbors when the public `SNP_distances.tsv` is small enough to scan
    - otherwise 10 same-cluster comparators from the live cluster membership table
@@ -183,21 +173,21 @@ Supported metadata columns are matched case-insensitively and may include:
 - `asm_acc`
 - `scientific_name` / `species`
 
-If `Sample` itself looks like an SRR accession (for example `SRR30768419`), `SWAM-g` will try to resolve the corresponding BioSample automatically through NCBI SRA metadata before joining against the PD table.
+If `Sample` itself looks like an SRR accession (for example `SRR30768419`), `OHM-g` will try to resolve the corresponding BioSample automatically through NCBI SRA metadata before joining against the PD table.
 
 The bundled driver scripts now take their PD behavior from the selected profile config file. Edit the profile `config:` block for persistent defaults, or use `--config` for one-off overrides:
 
 ```bash
-bash run_swam-g.sh "$input" "$output" \
+bash run_ohm-g.sh "$input" "$output" \
     --config pd_lookup=false
 
-bash run_swam-g.sh "$input" "$output" \
+bash run_ohm-g.sh "$input" "$output" \
     --config \
       pd_backend=table \
       pd_isolates_tsv="/path/to/pd_isolates.tsv" \
       pd_exceptions_tsv="/path/to/pd_isolate_exceptions.tsv"
 
-bash run_swam-g_local.sh /path/to/input /path/to/output \
+bash run_ohm-g_local.sh /path/to/input /path/to/output \
     --config pd_sample_metadata_tsv="/path/to/sample_metadata.tsv"
 ```
 
@@ -243,7 +233,7 @@ Because the public PD distance tables can be extremely large for some taxgroups,
 ```
 output/
 ├── mashtree.nwk               # Quick assembly relationship sketch from mashtree
-├── SWAM-g_results.xlsx         # Primary deliverable — multi-sheet workbook (see below)
+├── OHM-g_results.xlsx         # Primary deliverable — multi-sheet workbook (see below)
 ├── pd_isolate_metadata.xlsx    # Optional PD workbook containing isolate metadata + comparators
 ├── contig_map.csv              # Per-contig annotation map (see below)
 └── data/
@@ -267,7 +257,7 @@ output/
     └── unicycler/              # Assemblies (assembly.fasta), coverage TSVs, and protein FAAs
 ```
 
-### `SWAM-g_results.xlsx`
+### `OHM-g_results.xlsx`
 
 A multi-sheet workbook collating all tool outputs. Each sheet can be used independently for downstream analysis.
 
