@@ -253,7 +253,7 @@ def fetch_sra_metadata(accession: str) -> dict[str, str]:
 
 
 def open_url(url: str, method: str = "GET"):
-    request = Request(url, headers={"User-Agent": "SWAM-g PD lookup"}, method=method)
+    request = Request(url, headers={"User-Agent": "OHM-g PD lookup"}, method=method)
     return urlopen(request, timeout=60)
 
 

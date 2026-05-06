@@ -5,7 +5,7 @@
 
 
 
-<img width="976" height="755" alt="SWAM-g_diagram-V3 drawio" src="https://github.com/user-attachments/assets/1ad338d2-5b63-4f1b-8fe3-227384eb3831" />
+<img width="976" height="755" alt="OHM-g_diagram-V3 drawio" src="https://github.com/user-attachments/assets/1ad338d2-5b63-4f1b-8fe3-227384eb3831" />
 
 
 
@@ -44,7 +44,7 @@ git clone https://github.com/davis-bc/OHM-g
 - `config/slurm/config.yaml` for HPC runs
 - `config/local/config.yaml` for workstation runs
 
-Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`, then set the optional analysis booleans in the profile's `config:` block. The mandatory core path always runs: `fastp`, `unicylcer`, `MASH` taxonomy, `MOB-recon`, and `AMRFinderPlus`.
+Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`, then set the optional analysis booleans in the profile's `config:` block. The mandatory core path always runs: `fastp`, `unicycler`, `MASH` taxonomy, `MOB-recon`, and `AMRFinderPlus`.
 
 ```yaml
 config:
@@ -65,6 +65,18 @@ default-resources:
 ```
 
 More information on Snakemake configurations for different compute environments can be found in the [Snakemake docs](https://snakemake.readthedocs.io/en/stable/).
+
+### `workflow/rules/` module layout
+The workflow rule files are organized by analysis intent so new rules have one obvious home:
+
+- `preprocess.smk` — input cleaning and read preprocessing
+- `assemble.smk` — assembly generation and shared assembly-derived artifacts
+- `quality.smk` — QC and quality metrics such as coverage and CheckM2
+- `classify.smk` — taxonomy and general isolate typing
+- `amr.smk` — AMR-oriented helper and annotation rules
+- `mobility.smk` — plasmid, mobile-element, and secretion-system rules
+- `serotype.smk` — serotype/pathotype-specialized rules
+- `setup.smk`, `common.smk`, and `summarize.smk` remain the bootstrap, shared-helper, and reporting layers
 
 ### Step 3. Download some test data
 To test the pipeline, download example AMR-laden *E. coli*, *S. enterica*, and *E. faecalis* genomes using `fasterq-dump`. This will produce paired-end R1/R2 FASTQ files automatically:
@@ -113,7 +125,7 @@ If startup logs show a warning like `Mismatch in number of R1 (...) and R2 (...)
 ### Resource tuning
 The default Slurm profile in `config/slurm/config.yaml` has been tuned from benchmarking data.
 
-For `Unicylcer`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
+For `Unicycler`, assembly retries scale automatically in `workflow/rules/assemble.smk`:
 
 1. attempt 1: `40000 MB`, `4h`
 2. attempt 2: `60000 MB`, `6h`
@@ -127,7 +139,7 @@ Salmonella serotyping uses two complementary methods:
 1. **SeqSero2 allele mode** on the `fastp`-cleaned paired-end reads
 2. **SISTR** on the draft assembly
 
-Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, SWAM-g writes the expected placeholder TSV and skips the serotyping runtime for that sample.
+Both methods are gated by the run-level MASH taxonomy table. If a sample is not classified as `g__Salmonella`, OHM-g writes the expected placeholder TSV and skips the serotyping runtime for that sample.
 
 ### Running on a local workstation
 For running without Slurm (e.g., a workstation, laptop, or VM), use the included `run_ohm-g_local.sh` script. It uses the `config/local/` profile, which caps CPU usage at 8 cores and total RAM at 30 GB, serializes the memory-intensive MASH classify step automatically, and exposes the same optional analysis booleans in its `config:` block. This is a good way to validate the pipeline with the test data before running a full HPC batch.
@@ -222,7 +234,7 @@ The lookup outputs are written to:
 
 Reported statuses include `FOUND`, `FOUND_NO_CLUSTER`, `NOT_FOUND`, `QC_EXCEPTION`, `NO_ACCESSION`, `LOOKUP_ERROR`, `CONFIG_ERROR`, `UNSUPPORTED_ORGANISM`, and `DISABLED`.
 
-Because the public PD distance tables can be extremely large for some taxgroups, exact pairwise comparator ranking is not always practical. In those cases, `SWAM-g` falls back automatically to same-cluster comparators from the current live cluster membership table and records that choice in `pd_lookup_note` / `PD_Comparator_Mode`.
+Because the public PD distance tables can be extremely large for some taxgroups, exact pairwise comparator ranking is not always practical. In those cases, `OHM-g` falls back automatically to same-cluster comparators from the current live cluster membership table and records that choice in `pd_lookup_note` / `PD_Comparator_Mode`.
 
 ---
 

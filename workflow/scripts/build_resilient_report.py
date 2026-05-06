@@ -24,7 +24,7 @@ RULES = [
         ],
     },
     {
-        "name": "unicylcer",
+        "name": "unicycler",
         "outputs": [
             "data/unicycler/{sample}/assembly.fasta",
         ],
@@ -36,7 +36,7 @@ RULES = [
         ],
     },
     {
-        "name": "mash_classify",
+        "name": "mash",
         "outputs": [
             "data/mash/{sample}.mash_screen.tsv",
         ],
@@ -56,7 +56,7 @@ RULES = [
         ],
     },
     {
-        "name": "amrfinderplus",
+        "name": "amrfinder",
         "outputs": [
             "data/amrfinderplus/{sample}.afp.tsv",
         ],
@@ -69,13 +69,13 @@ RULES = [
         ],
     },
     {
-        "name": "mef",
+        "name": "mobileelementfinder",
         "outputs": [
             "data/mobileelementfinder/{sample}/{sample}.csv",
         ],
     },
     {
-        "name": "seqsero",
+        "name": "seqsero2",
         "outputs": [
             "data/serotype/Salmonella/{sample}/SeqSero_result.tsv",
         ],
@@ -298,7 +298,7 @@ def build_text_report(
 ) -> None:
     counts = Counter(row["overall_status"] for row in sample_rows)
     with report_path.open("w", encoding="utf-8") as handle:
-        handle.write("SWAM-g run report\n")
+        handle.write("OHM-g run report\n")
         handle.write("=================\n\n")
         if driver_log:
             handle.write(f"Driver log: {driver_log}\n\n")
@@ -329,7 +329,7 @@ def build_text_report(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build a post-run status report for SWAM-g.")
+    parser = argparse.ArgumentParser(description="Build a post-run status report for OHM-g.")
     parser.add_argument("--input-dir", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--driver-log", default="")

@@ -1,6 +1,6 @@
 # Default Slurm profile.
 #
-#  This is the single supported HPC profile for SWAM-g. Per-rule resources
+#  This is the single supported HPC profile for OHM-g. Per-rule resources
 #  below were retuned from benchmark measurements.
 #  Explicit walltime strings are used so clusters do
 #  not disagree about whether bare numeric runtimes mean minutes or seconds.
@@ -22,7 +22,7 @@ quiet:
   - rules
 
 # Analysis modules.
-# Mandatory core stages always run: fastp, unicylcer, MASH taxonomy,
+# Mandatory core stages always run: fastp, unicycler, MASH taxonomy,
 # and AMRFinderPlus. Toggle the optional analyses below as needed.
 config:
   run_coverage: true
@@ -52,44 +52,44 @@ groups:
   fastp: "fastp"
   coverage: "coverage"
   mobsuite: "mobsuite"
-  amrfinderplus: "amrfinderplus"
+  amrfinder: "amrfinder"
   resfinder: "resfinder"
-  mef: "mobilelementfinder"
+  mobileelementfinder: "mobileelementfinder"
   checkm2: "checkm2"
   txsscan: "txsscan"
   ectyper: "ectyper"
-  seqsero: "seqsero"
+  seqsero2: "seqsero2"
   sistr: "sistr"
 
-# group: n samples per group 
+# group: n samples per group
 group-components:
   fastp: 4
   coverage: 4
   mobsuite: 4
-  amrfinderplus: 4
+  amrfinder: 4
   resfinder: 4
-  mobilelementfinder: 4
+  mobileelementfinder: 4
   checkm2: 4
   txsscan: 4
   ectyper: 4
-  seqsero: 4
+  seqsero2: 4
   sistr: 4
 
 # Note. Resources for grouped rules are summed
 # 1 thread x 4 samples/group = 4 threads in group job
 set-threads:
   fastp: 1
-  unicylcer: 32
+  unicycler: 32
   coverage: 1
-  mash_classify: 4
+  mash: 4
   mobsuite: 1
-  amrfinderplus: 1
+  amrfinder: 1
   resfinder: 1
-  mef: 1
+  mobileelementfinder: 1
   checkm2: 32
   txsscan: 1
   ectyper: 1
-  seqsero: 1
+  seqsero2: 1
   sistr: 1
   mlst: 1
 
@@ -100,19 +100,19 @@ set-resources:
   coverage:
     mem_mb: 2000
     runtime: "30m"
-  mash_classify:
+  mash:
     mem_mb: 24000
     runtime: "30m"
   mobsuite:
     mem_mb: 2000
     runtime: "1h"
-  amrfinderplus:
+  amrfinder:
     mem_mb: 1000
     runtime: "30m"
   resfinder:
     mem_mb: 1000
     runtime: "30m"
-  mef:
+  mobileelementfinder:
     mem_mb: 1000
     runtime: "30m"
   checkm2:
@@ -124,7 +124,7 @@ set-resources:
   ectyper:
     mem_mb: 5000
     runtime: "2h"
-  seqsero:
+  seqsero2:
     mem_mb: 1000
     runtime: "30m"
   sistr:

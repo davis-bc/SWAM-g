@@ -16,9 +16,12 @@
 
 include: "rules/common.smk"
 include: "rules/setup.smk"
+include: "rules/preprocess.smk"
 include: "rules/assemble.smk"
-include: "rules/annotate.smk"
+include: "rules/quality.smk"
 include: "rules/classify.smk"
+include: "rules/amr.smk"
+include: "rules/mobility.smk"
 include: "rules/serotype.smk"
 include: "rules/summarize.smk"
 

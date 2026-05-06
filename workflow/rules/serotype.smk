@@ -1,27 +1,15 @@
-# ---------------------------------
-#   Predict sequence type (MLST)
-# ---------------------------------
+# ------------------------------------------
+#   Serotype- and pathotype-specific typing
+# ------------------------------------------
 
-rule mlst:
-    input:
-        symlink = expand(os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"), sample=samples)
-    output:
-        mlst = os.path.join(output_dir, "data", "mlst", "mlst.tsv")
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "mlst.txt")
-    conda: "../envs/mlst.yaml"
-    shell:
-        """
-        
-        mlst $(dirname {input.symlink[0]})/*.fasta > {output.mlst}
-        
-        """
+# Rules in this module should run specialized serotype or pathotype tools for
+# biologically scoped taxa, such as Salmonella or E. coli.
 
 # ---------------------------------
 #   Serotype Salmonella (SeqSero2)
 # ---------------------------------
 
-rule seqsero:
+rule seqsero2:
     input:
         r1_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R1.clean.fastq.gz"),
         r2_clean = os.path.join(output_dir, "data", "clean_reads", "{sample}_R2.clean.fastq.gz"),
@@ -29,7 +17,7 @@ rule seqsero:
     output:
         sq2 = os.path.join(output_dir, "data", "serotype", "Salmonella", "{sample}", "SeqSero_result.tsv")
     log:
-        os.path.join(output_dir, "logs", "seqsero", "{sample}.log")
+        os.path.join(output_dir, "logs", "seqsero2", "{sample}.log")
     threads: 4
     benchmark:
         os.path.join(output_dir, "data", "benchmarks", "{sample}.seqsero2.txt")
@@ -44,7 +32,7 @@ rule seqsero:
         started_at=$(date -Is)
         on_error() {{
             rc=$?
-            echo "[swamg-rule] seqsero"
+            echo "[swamg-rule] seqsero2"
             echo "[swamg-sample] {wildcards.sample}"
             echo "[swamg-host] $(hostname)"
             echo "[swamg-started-at] $started_at"
@@ -55,7 +43,7 @@ rule seqsero:
         }}
         trap 'on_error' ERR
 
-        echo "[swamg-rule] seqsero"
+        echo "[swamg-rule] seqsero2"
         echo "[swamg-sample] {wildcards.sample}"
         echo "[swamg-host] $(hostname)"
         echo "[swamg-started-at] $started_at"
@@ -192,74 +180,6 @@ PY
         echo "[swamg-finished-at] $(date -Is)"
         echo "[swamg-status] SUCCESS"
         """
-
-# -------------------------------------------------
-#   Scan for bacterial secretion systems (TXSScan)
-# -------------------------------------------------
-
-rule txsscan:
-    input:
-        assembly = os.path.join(output_dir, "data", "unicycler", "batch", "{sample}.fasta"),
-        models =   os.path.join(output_dir, "data", "txsscan", ".txsscan.setup.done")
-    output:
-        prot = os.path.join(output_dir, "data", "unicycler", "{sample}", "{sample}.prot.faa"),
-        sys  = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.tsv"),
-        mods = os.path.join(output_dir, "data", "txsscan", "{sample}", "all_systems.txt")
-    log:
-        os.path.join(output_dir, "logs", "txsscan", "{sample}.log")
-    benchmark:
-        os.path.join(output_dir, "data", "benchmarks", "{sample}.txsscan.txt")
-    conda: "../envs/macsyfinder.yaml"
-    shell:
-        r"""
-        log_dir=$(dirname "{log}")
-        mkdir -p "$log_dir"
-        exec > "{log}" 2>&1
-        set -euo pipefail
-
-        started_at=$(date -Is)
-        on_error() {{
-            rc=$?
-            echo "[swamg-rule] txsscan"
-            echo "[swamg-sample] {wildcards.sample}"
-            echo "[swamg-host] $(hostname)"
-            echo "[swamg-started-at] $started_at"
-            echo "[swamg-finished-at] $(date -Is)"
-            echo "[swamg-status] FAILED"
-            echo "[swamg-exit-code] $rc"
-            exit $rc
-        }}
-        trap 'on_error' ERR
-
-        echo "[swamg-rule] txsscan"
-        echo "[swamg-sample] {wildcards.sample}"
-        echo "[swamg-host] $(hostname)"
-        echo "[swamg-started-at] $started_at"
-
-        models_dir="dbs/macsyfinder/models"
-
-        if [ ! -d "$models_dir/TXSScan" ]; then
-            echo "TXSScan models are missing from $models_dir. Run txsscan_init on an internet-connected login/head node." >&2
-            exit 1
-        fi
-        
-        # find all proteins in assembly
-        prodigal -i {input.assembly} -a {output.prot} -q 
-        
-        # run TXSScan on proteins using the pre-staged offline model bundle.
-        # Upstream TXSScan examples use ordered_replicon mode for protein FASTAs.
-        macsyfinder --db-type ordered_replicon \
-                    --sequence-db {output.prot} \
-                    --models TXSScan all \
-                    --models-dir "$models_dir" \
-                    -o $(dirname {output.sys}) \
-                    --force 
-
-        trap - ERR
-        echo "[swamg-finished-at] $(date -Is)"
-        echo "[swamg-status] SUCCESS"
-        """
-
 
 # --------------------------------------------
 #   Serotype and pathotype E. coli (ECTyper)

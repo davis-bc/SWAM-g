@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Stage a subset of SWAM-g input FASTQs from a manifest TSV.")
+    parser = argparse.ArgumentParser(description="Stage a subset of OHM-g input FASTQs from a manifest TSV.")
     parser.add_argument("--manifest", required=True, help="Manifest TSV with sample, r1, r2 columns.")
     parser.add_argument("--dest", required=True, help="Destination directory for the subset.")
     parser.add_argument(

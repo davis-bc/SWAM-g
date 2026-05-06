@@ -13,7 +13,7 @@ import csv
 input_dir  = config["in_dir"]
 output_dir = config["out_dir"]
 mash_taxonomy_file = os.path.join(output_dir, "data", "mash", "mash_taxonomy.tsv")
-summary_workbook = os.path.join(output_dir, "SWAM-g_results.xlsx")
+summary_workbook = os.path.join(output_dir, "OHM-g_results.xlsx")
 pd_workbook = os.path.join(output_dir, "pd_isolate_metadata.xlsx")
 contig_map_file = os.path.join(output_dir, "contig_map.csv")
 mashtree_file = os.path.join(output_dir, "mashtree.nwk")

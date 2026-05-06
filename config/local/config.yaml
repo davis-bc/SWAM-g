@@ -10,7 +10,7 @@ keep-incomplete: true
 
 # ------------------------------------------------------------------
 #  Analysis modules
-#  Mandatory core stages always run: fastp, unicylcer, MASH taxonomy,
+#  Mandatory core stages always run: fastp, unicycler, MASH taxonomy,
 #  and AMRFinderPlus. Toggle the optional analyses below as needed.
 # ------------------------------------------------------------------
 config:
@@ -34,7 +34,7 @@ config:
 #  Global resource pool — Snakemake schedules jobs so the running
 #  total never exceeds these values.
 #  mem_mb = 30000 (~30 GB) leaves ~2 GB headroom for the OS.
-#  With mash_classify declared at 20000 MB below, only ONE mash
+#  With mash declared at 20000 MB below, only ONE mash
 #  screen job runs at a time, preventing the OOM seen on HPC.
 # ------------------------------------------------------------------
 resources:
@@ -44,45 +44,45 @@ default-resources:
   mem_mb: 4000
 
 # ------------------------------------------------------------------
-#  Thread overrides — unicylcer (sic) requests 32 threads by
+#  Thread overrides — unicycler requests 32 threads by
 #  default; cap it at the number of physical cores available.
 # ------------------------------------------------------------------
 set-threads:
   fastp: 1
-  unicylcer: 8
+  unicycler: 8
   coverage: 1
-  mash_classify: 4
+  mash: 4
   mobsuite: 1
-  amrfinderplus: 1
+  amrfinder: 1
   resfinder: 1
-  mef: 1
+  mobileelementfinder: 1
   checkm2: 1
   txsscan: 1
   ectyper: 1
-  seqsero: 4
+  seqsero2: 4
   sistr: 4
   mlst: 1
 
 # ------------------------------------------------------------------
-#  Resource overrides — raise mash_classify memory reservation so
+#  Resource overrides — raise mash memory reservation so
 #  the scheduler serialises it against the 30 GB global pool.
 # ------------------------------------------------------------------
 set-resources:
   fastp:
     mem_mb: 10000
-  unicylcer:
+  unicycler:
     mem_mb: 20000
   coverage:
     mem_mb: 4000
-  mash_classify:
+  mash:
     mem_mb: 20000
   mobsuite:
     mem_mb: 4000
-  amrfinderplus:
+  amrfinder:
     mem_mb: 2000
   resfinder:
     mem_mb: 4000
-  mef:
+  mobileelementfinder:
     mem_mb: 2000
   checkm2:
     mem_mb: 4000
@@ -90,7 +90,7 @@ set-resources:
     mem_mb: 2000
   ectyper:
     mem_mb: 4000
-  seqsero:
+  seqsero2:
     mem_mb: 4000
   sistr:
     mem_mb: 4000
