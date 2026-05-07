@@ -19,7 +19,7 @@ restart-times: 2
 latency-wait: 60
 show-failed-logs: true
 quiet:
-- rules
+  - rules
 
 # Analysis modules.
 # Mandatory core stages always run: fastp, unicycler, MASH taxonomy,
