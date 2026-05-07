@@ -18,7 +18,7 @@
 
 > **Databases:** Reference databases and model bundles are bootstrapped by Snakemake local init rules into the repo-level `dbs/` directory. On HPC, the first bootstrap or any later refresh still needs to run from an internet-connected login/head node; downstream compute-node jobs then reuse the staged `dbs/` contents fully offline.
 
-### Step 0. Install conda/mamba manager, Snakemake, and SRA-tools
+### Step 0. Install conda/mamba manager, Snakemake, SRA-tools, and TUI dependencies
 `OHM-g` was constructed using [Snakemake](https://github.com/snakemake/snakemake) and relies entirely on conda environments.
 Users should install either [miniforge](https://github.com/conda-forge/miniforge) or [miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#linux-2) if their shells are not already configured for Conda.
 
@@ -29,7 +29,7 @@ wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforg
 bash installer.sh -b -p $HOME/miniforge3 && rm installer.sh
 source ~/miniforge3/bin/activate
 conda init && exec $SHELL
-conda install "snakemake>=8" snakemake-executor-plugin-slurm sra-tools
+conda install "snakemake>=8" snakemake-executor-plugin-slurm sra-tools textual ruamel.yaml
 ```
 
 > **HPC users:** `snakemake-executor-plugin-slurm` is required for the Slurm profile. If you are running on a local workstation only, it can be omitted.
@@ -45,6 +45,18 @@ git clone https://github.com/davis-bc/OHM-g
 - `config/local/config.yaml` for workstation runs
 
 Edit the `slurm_account` and `slurm_partition` fields in `config/slurm/config.yaml`, then set the optional analysis booleans in the profile's `config:` block. The mandatory core path always runs: `fastp`, `unicycler`, `MASH` taxonomy, `MOB-recon`, and `AMRFinderPlus`.
+
+For a guided terminal editor for the Slurm profile, launch:
+
+```bash
+bash run_slurm_config_tui.sh
+```
+
+The TUI dependencies are included in the Step 0 setup command. If you are using an existing environment, install the same dependencies with `conda install textual ruamel.yaml` or `python -m pip install -r requirements-tui.txt`. The TUI edits `config/slurm/config.yaml`, keeps a timestamped backup next to the config file on save, and can also target another profile path:
+
+```bash
+bash run_slurm_config_tui.sh config/slurm/config.yaml
+```
 
 ```yaml
 config:
